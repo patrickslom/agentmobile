@@ -29,15 +29,19 @@ Use this loop every run.
 9. Commit only files modified in this run with a task-specific message.
 10. Push commit to `master` on GitHub (`origin master`).
 11. Rebuild/restart containers on VPS:
-   - This VPS is shared with other agents; coordinate before deploy commands.
-   - Best-effort pre-check for in-progress builds/restarts:
-     - `pgrep -af "docker compose.*(build|up)"`
-     - `pgrep -af "docker (build|buildx)"`
-   - If another agent build/restart is in progress, wait a random 3-5 minutes, then check again.
-   - Run deploy with retry-until-success behavior:
+   - This VPS is shared with other agents; deploy coordination is required through `LOCK.md` at repo root.
+   - Before deploy, acquire build lock in `LOCK.md` with:
+     - workstream (`FRONT|BACK|DB`)
+     - current date/time (local + UTC)
+     - lock acquire epoch seconds
+     - short task label
+   - If lock is active and age is `<= 20 minutes`, wait random 3-5 minutes and check again.
+   - If lock is older than `20 minutes`, treat as stale: clear it, then acquire lock and proceed.
+   - Run deploy with retry-until-success behavior while holding lock:
      - `docker compose build`
      - `docker compose up -d`
    - If either command fails, wait a random 3-5 minutes and retry until success.
+   - After deploy succeeds, clear `LOCK.md` back to unlocked template for the next agent.
 12. Run smoke checks:
    - API health endpoint
    - web reachable
@@ -55,7 +59,7 @@ Use this loop every run.
 - If blocked by missing secrets/infra, stop and report exact blocker.
 - If push fails, do not mark task complete.
 - If deploy/smoke checks fail, report and optionally rollback before stopping.
-- Rebuild/restart is a shared resource: use best-effort active-build checks before deploy, and use random 3-5 minute retry delays until deploy succeeds.
+- Rebuild/restart is a shared resource: use `LOCK.md` coordination, respect 20-minute stale lock handling, and use random 3-5 minute retry delays until deploy succeeds.
 
 ## Task Selection Rules
 - Always pick the earliest unchecked task in the highest-priority TODO file.
@@ -103,12 +107,42 @@ git commit -m "feat: complete <todo-task-id>"
 git push origin master
 
 # deploy
-while pgrep -af "docker compose.*(build|up)|docker (build|buildx)" | grep -Fv "pgrep -af" >/dev/null; do
-  sleep $((180 + RANDOM % 121))
+workstream="FRONT" # set FRONT|BACK|DB for this run
+agent="${USER:-agent}"
+task_label="<todo-task-id>"
+while :; do
+  now_epoch="$(date +%s)"
+  if grep -q "^LOCK_STATUS: LOCKED$" LOCK.md; then
+    lock_epoch="$(awk -F': ' '/^LOCK_ACQUIRED_AT_EPOCH:/ {print $2}' LOCK.md)"
+    age=$((now_epoch - ${lock_epoch:-0}))
+    if [ "$age" -le 1200 ]; then
+      sleep $((180 + RANDOM % 121))
+      continue
+    fi
+  fi
+  cat > LOCK.md <<EOF
+LOCK_STATUS: LOCKED
+WORKSTREAM: ${workstream}
+AGENT: ${agent}
+DATE_TIME_LOCAL: $(date +"%Y-%m-%d %H:%M:%S %Z")
+DATE_TIME_UTC: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+LOCK_ACQUIRED_AT_EPOCH: ${now_epoch}
+TASK: ${task_label}
+EOF
+  break
 done
 until docker compose build && docker compose up -d; do
   sleep $((180 + RANDOM % 121))
 done
+cat > LOCK.md <<'EOF'
+LOCK_STATUS: UNLOCKED
+WORKSTREAM: NONE
+AGENT: NONE
+DATE_TIME_LOCAL: NONE
+DATE_TIME_UTC: NONE
+LOCK_ACQUIRED_AT_EPOCH: 0
+TASK: NONE
+EOF
 ```
 
 ## Run Log (Append Per Run)
