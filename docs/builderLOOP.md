@@ -326,8 +326,17 @@ docker compose up -d
   - `cd codexchat_back && python3 -m compileall app` ✅
   - `cd codexchat_back && python3 -m compileall alembic` ✅
 - Commit:
-- Push:
+  - `f018029` - feat(backend): enforce /api and authenticated /ws contract with standard errors
+  - `c57126d` - fix(backend): apply error envelope to framework 404/405 responses
+- Push: `origin/master` updated successfully (to `c57126d`)
 - Deploy status:
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
 - Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/does-not-exist` ✅ (HTTP 404 with standard JSON error envelope including `request_id`)
+  - `wss://todo.flounderboard.com/ws` ✅ reachable and auth-enforced (`HTTP 403` on unauthenticated upgrade)
 - Notes/blockers:
+  - First smoke attempt briefly returned `502` while Traefik/backend routing converged after container recreation; subsequent retries were stable and passing.
   - Websocket auth in this section uses a transitional cookie format (`codexchat_session` as user UUID) until full signed session persistence is implemented in section 2.
