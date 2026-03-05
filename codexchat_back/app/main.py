@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import api_router
 from app.core.config import get_settings
@@ -83,6 +84,23 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    detail_message = exc.detail if isinstance(exc.detail, str) else "Request failed"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=build_error_envelope(
+            code=_http_code_for_status(exc.status_code),
+            message=detail_message,
+            details={},
+            request_id=_current_request_id(request),
+        ),
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(
+    request: Request,
+    exc: StarletteHTTPException,
+) -> JSONResponse:
     detail_message = exc.detail if isinstance(exc.detail, str) else "Request failed"
     return JSONResponse(
         status_code=exc.status_code,
