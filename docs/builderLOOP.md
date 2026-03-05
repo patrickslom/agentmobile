@@ -29,8 +29,15 @@ Use this loop every run.
 9. Commit only files modified in this run with a task-specific message.
 10. Push commit to `master` on GitHub (`origin master`).
 11. Rebuild/restart containers on VPS:
-   - `docker compose build`
-   - `docker compose up -d`
+   - This VPS is shared with other agents; coordinate before deploy commands.
+   - Best-effort pre-check for in-progress builds/restarts:
+     - `pgrep -af "docker compose.*(build|up)"`
+     - `pgrep -af "docker (build|buildx)"`
+   - If another agent build/restart is in progress, wait a random 3-5 minutes, then check again.
+   - Run deploy with retry-until-success behavior:
+     - `docker compose build`
+     - `docker compose up -d`
+   - If either command fails, wait a random 3-5 minutes and retry until success.
 12. Run smoke checks:
    - API health endpoint
    - web reachable
@@ -48,6 +55,7 @@ Use this loop every run.
 - If blocked by missing secrets/infra, stop and report exact blocker.
 - If push fails, do not mark task complete.
 - If deploy/smoke checks fail, report and optionally rollback before stopping.
+- Rebuild/restart is a shared resource: use best-effort active-build checks before deploy, and use random 3-5 minute retry delays until deploy succeeds.
 
 ## Task Selection Rules
 - Always pick the earliest unchecked task in the highest-priority TODO file.
@@ -95,8 +103,12 @@ git commit -m "feat: complete <todo-task-id>"
 git push origin master
 
 # deploy
-docker compose build
-docker compose up -d
+while pgrep -af "docker compose.*(build|up)|docker (build|buildx)" | grep -Fv "pgrep -af" >/dev/null; do
+  sleep $((180 + RANDOM % 121))
+done
+until docker compose build && docker compose up -d; do
+  sleep $((180 + RANDOM % 121))
+done
 ```
 
 ## Run Log (Append Per Run)
