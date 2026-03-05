@@ -36,12 +36,12 @@
 - [x] Create any needed `audit_logs` table for admin actions (create user, disable user, password reset). (completed 2026-03-05)
 
 ## 4) Heartbeat Schema
-- [ ] Create `heartbeat_jobs` table:
-- [ ] `id`, `conversation_id`, `instruction_file_path`, `enabled`, `created_at`, `updated_at`, `archived_at`.
-- [ ] Create `heartbeat_schedules` table:
-- [ ] `id`, `heartbeat_job_id`, `interval_minutes`, `next_run_at`, `last_run_at`, `created_at`, `updated_at`.
-- [ ] Create `heartbeat_runs` table:
-- [ ] `id`, `heartbeat_job_id`, `started_at`, `finished_at`, `status`, `error_text`, `created_at`.
+- [x] Create `heartbeat_jobs` table: (completed 2026-03-05)
+- [x] `id`, `conversation_id`, `instruction_file_path`, `enabled`, `created_at`, `updated_at`, `archived_at`. (completed 2026-03-05)
+- [x] Create `heartbeat_schedules` table: (completed 2026-03-05)
+- [x] `id`, `heartbeat_job_id`, `interval_minutes`, `next_run_at`, `last_run_at`, `created_at`, `updated_at`. (completed 2026-03-05)
+- [x] Create `heartbeat_runs` table: (completed 2026-03-05)
+- [x] `id`, `heartbeat_job_id`, `started_at`, `finished_at`, `status`, `error_text`, `created_at`. (completed 2026-03-05)
 
 ## 5) Concurrency and Locks Schema
 - [ ] Create `conversation_locks` table (or equivalent lock record) for per-thread active run protection.

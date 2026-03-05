@@ -260,6 +260,29 @@ docker compose up -d
   - `/chat` and conversation-history sidebar behavior are tracked by later frontend TODO items and were not implemented in this single-task run.
 
 - Date: 2026-03-05
+- Task completed: docs/TODO/dbTODO.md :: 4) Heartbeat Schema
+- Questions asked:
+  1) Should `heartbeat_runs.status` be a Postgres enum or plain text?
+  2) Should `heartbeat_jobs.conversation_id` and `heartbeat_schedules.heartbeat_job_id` use foreign keys now?
+  3) Should this run include migration + minimal SQLAlchemy models, or migration-only?
+- Assumptions:
+  - `heartbeat_runs.status` uses `TEXT NOT NULL` with `CHECK (status IN ('queued','running','succeeded','failed'))` and default `'queued'`.
+  - Foreign keys are added now:
+    - `heartbeat_jobs.conversation_id -> conversations.id` with `ON DELETE CASCADE`
+    - `heartbeat_schedules.heartbeat_job_id -> heartbeat_jobs.id` with `ON DELETE CASCADE`
+    - `heartbeat_runs.heartbeat_job_id -> heartbeat_jobs.id` with `ON DELETE CASCADE`
+  - Minimal SQLAlchemy models are added now for job/schedule/run tables without relationship wiring.
+- Validation commands/results:
+  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `cd /root/codexchat && docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_04` -> `20260305_05`)
+  - `cd /root/codexchat && docker compose run --rm codexchat_back alembic current` ✅ (`20260305_05 (head)`)
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+
+- Date: 2026-03-05
 - Task completed: docs/TODO/dbTODO.md :: 3) Settings and Admin Tables
 - Questions asked:
   1) Should `settings` be a single-row global table (`id=1`) with strict min/max checks (upload limit >= 1 MB, heartbeat cap >= 1)?
