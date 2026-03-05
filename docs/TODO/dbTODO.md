@@ -26,14 +26,14 @@
 - [x] Add fields: `key`, `fail_count`, `ban_level`, `ban_until`, `last_failed_at`, `updated_at`. (completed 2026-03-05)
 
 ## 3) Settings and Admin Tables
-- [ ] Create `settings` table (global app settings + defaults).
-- [ ] Include fields for:
-- [ ] execution mode defaults
-- [ ] upload size limit default (`15 MB` baseline)
-- [ ] heartbeat defaults (disabled baseline)
-- [ ] heartbeat cap default (`10`) and unlimited flag
-- [ ] theme default (light)
-- [ ] Create any needed `audit_logs` table for admin actions (create user, disable user, password reset).
+- [x] Create `settings` table (global app settings + defaults). (completed 2026-03-05)
+- [x] Include fields for: (completed 2026-03-05)
+- [x] execution mode defaults (completed 2026-03-05)
+- [x] upload size limit default (`15 MB` baseline) (completed 2026-03-05)
+- [x] heartbeat defaults (disabled baseline) (completed 2026-03-05)
+- [x] heartbeat cap default (`10`) and unlimited flag (completed 2026-03-05)
+- [x] theme default (light) (completed 2026-03-05)
+- [x] Create any needed `audit_logs` table for admin actions (create user, disable user, password reset). (completed 2026-03-05)
 
 ## 4) Heartbeat Schema
 - [ ] Create `heartbeat_jobs` table:

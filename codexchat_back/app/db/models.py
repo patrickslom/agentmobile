@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import BIGINT, Boolean, CheckConstraint, Integer, String, Text, text
-from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID
+from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -185,7 +185,94 @@ class AuthAttempt(Base):
     )
 
 
+class Settings(Base):
+    __tablename__ = "settings"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_settings_single_row"),
+        CheckConstraint(
+            "execution_mode_default IN ('regular', 'yolo')",
+            name="ck_settings_execution_mode_default",
+        ),
+        CheckConstraint(
+            "upload_limit_mb_default >= 1",
+            name="ck_settings_upload_limit_mb_default_min",
+        ),
+        CheckConstraint(
+            "heartbeat_cap_default >= 1",
+            name="ck_settings_heartbeat_cap_default_min",
+        ),
+        CheckConstraint(
+            "theme_default IN ('light', 'dark')",
+            name="ck_settings_theme_default",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, server_default=text("1"))
+    execution_mode_default: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        server_default=text("'regular'"),
+    )
+    upload_limit_mb_default: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=text("15"),
+    )
+    heartbeat_enabled_default: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
+    )
+    heartbeat_cap_default: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=text("10"),
+    )
+    heartbeat_unlimited_default: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
+    )
+    theme_default: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        server_default=text("'light'"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    target_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    request_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(INET, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+
+
 __all__ = [
+    "AuditLog",
     "AuthAttempt",
     "Base",
     "Conversation",
@@ -193,5 +280,6 @@ __all__ = [
     "Message",
     "MessageFile",
     "Session",
+    "Settings",
     "User",
 ]

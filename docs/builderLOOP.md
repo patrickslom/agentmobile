@@ -260,6 +260,27 @@ docker compose up -d
   - `/chat` and conversation-history sidebar behavior are tracked by later frontend TODO items and were not implemented in this single-task run.
 
 - Date: 2026-03-05
+- Task completed: docs/TODO/dbTODO.md :: 3) Settings and Admin Tables
+- Questions asked:
+  1) Should `settings` be a single-row global table (`id=1`) with strict min/max checks (upload limit >= 1 MB, heartbeat cap >= 1)?
+  2) For execution mode default, should we store it as text with allowed values `regular` and `yolo` (default `regular`)?
+  3) For `audit_logs`, should we include fields `id`, `actor_user_id`, `action`, `target_user_id`, `metadata_json`, `created_at`?
+- Assumptions:
+  - Single-row global `settings` table is enforced by DB check `id = 1`.
+  - `settings.execution_mode_default` is text constrained to `regular|yolo`, defaulting to `regular`.
+  - `settings` includes `updated_at` and nullable `updated_by_user_id`, plus DB checks for `upload_limit_mb_default >= 1` and `heartbeat_cap_default >= 1`.
+  - `audit_logs` includes requested fields plus `request_id` and `ip` for investigations, with flexible `metadata_json` JSONB payload.
+- Validation commands/results:
+  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_03` -> `20260305_04`)
+  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260305_04 (head)`)
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+
+- Date: 2026-03-05
 - Task completed: docs/TODO/dbTODO.md :: 1) Core Schema (Global Shared Model)
 - Questions asked:
   1) Should IDs for these tables use `UUID` (instead of integer/bigint)?
