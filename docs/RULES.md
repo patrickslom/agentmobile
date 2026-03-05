@@ -1,9 +1,12 @@
 # Rules
 
 ## Documentation Rules
+- This project is open source and intended for public use once complete; current work is still in-progress development.
 - Any new `.md` file added to this directory must also be added to `INDEX.md` with a short summary.
 - If an existing `.md` file is renamed or removed, `INDEX.md` must be updated in the same change.
 - Product behavior changes must update both `README.md` (user-facing) and `docs/codexchatmvp.md` (spec-facing).
+- `README.md` must be written as production/public-facing documentation for the completed project and should not be used to track current in-progress development status.
+- Current development status must be documented in `docs/` files (not in `README.md`).
 - TODO progress updates must only check off tasks that are actually implemented and validated.
 
 ## Build Execution Rules
