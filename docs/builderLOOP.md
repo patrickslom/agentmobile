@@ -259,6 +259,27 @@ EOF
   - `docker compose up -d` ✅
 
 - Date: 2026-03-05
+- Task completed: docs/TODO/dbTODO.md :: 8) Constraints and Data Integrity
+- Questions asked:
+  1) Should FK behavior default to `ON DELETE RESTRICT` for MVP?
+  2) Should message roles be constrained to `user|assistant|system` in MVP?
+  3) Should value constraints include non-negative `files.size_bytes` and positive settings caps?
+- Assumptions:
+  - `ON DELETE RESTRICT` is the default for core parent entities, with targeted `CASCADE` on dependent/internal tables.
+  - Message role constraint remains `user|assistant|system`.
+  - `files.size_bytes` is constrained to `>= 0`; existing settings minimum constraints remain enforced.
+- Validation commands/results:
+  - `docker run --rm --network codexchat_codexchat_internal -e DATABASE_URL=... -v /root/codexchat/codexchat_back:/app -w /app codexchat-codexchat_back python -m compileall app alembic` ✅
+  - `docker run --rm --network codexchat_codexchat_internal -e DATABASE_URL=... -v /root/codexchat/codexchat_back:/app -w /app codexchat-codexchat_back alembic heads` ✅ (`20260305_07`, `20260305_08`)
+  - `docker run --rm --network codexchat_codexchat_internal -e DATABASE_URL=... -v /root/codexchat/codexchat_back:/app -w /app codexchat-codexchat_back alembic upgrade heads` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+  - Local workspace already contained untracked migration `20260305_07_indexing_and_search.py`; left as-is per guardrail.
+
+- Date: 2026-03-05
 - Task completed: docs/TODO/dbTODO.md :: 2) Auth and Session Support Tables
 - Questions asked:
   1) Should `sessions.id` be UUID with `gen_random_uuid()` like existing core tables?

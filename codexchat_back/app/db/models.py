@@ -84,7 +84,11 @@ class Message(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -99,13 +103,20 @@ class Message(Base):
 
 class File(Base):
     __tablename__ = "files"
+    __table_args__ = (
+        CheckConstraint("size_bytes >= 0", name="ck_files_size_bytes_non_negative"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
     original_name: Mapped[str] = mapped_column(String(1024), nullable=False)
     storage_path: Mapped[str] = mapped_column(String(2048), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -128,8 +139,16 @@ class MessageFile(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    message_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    message_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("files.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
@@ -145,7 +164,11 @@ class Session(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
     token_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
@@ -249,7 +272,11 @@ class Settings(Base):
         nullable=False,
         server_default=text("now()"),
     )
-    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
 
 class AuditLog(Base):
@@ -260,9 +287,17 @@ class AuditLog(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    actor_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
     action: Mapped[str] = mapped_column(Text, nullable=False)
-    target_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    target_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     metadata_json: Mapped[dict] = mapped_column(
         JSONB,
         nullable=False,
@@ -287,7 +322,7 @@ class HeartbeatJob(Base):
     )
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="CASCADE"),
+        ForeignKey("conversations.id", ondelete="RESTRICT"),
         nullable=False,
     )
     instruction_file_path: Mapped[str] = mapped_column(String(2048), nullable=False)
@@ -395,7 +430,7 @@ class ConversationLock(Base):
     )
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="CASCADE"),
+        ForeignKey("conversations.id", ondelete="RESTRICT"),
         unique=True,
         nullable=False,
     )

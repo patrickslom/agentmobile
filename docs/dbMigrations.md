@@ -49,7 +49,7 @@ alembic history
 ## Conversation locks + stale recovery
 - Added table: `conversation_locks` (revision `20260305_06`).
 - Columns:
-  - `conversation_id` (unique FK to `conversations.id`, `ON DELETE CASCADE`)
+  - `conversation_id` (unique FK to `conversations.id`, `ON DELETE RESTRICT`)
   - `locked_by` (nullable FK to `users.id`, `ON DELETE SET NULL`)
   - `owner_token` (compare-and-release ownership token)
   - `locked_at`, `last_heartbeat_at`, `expires_at`
@@ -70,6 +70,28 @@ alembic history
   - `ix_conversation_locks_locked_by` on `locked_by`
 - Backfill notes:
   - No backfill required for this initial lock table creation.
+
+## Constraint policy (revision `20260305_08`)
+- Foreign key policy:
+  - Default: `ON DELETE RESTRICT` for core parent entities users care about.
+  - Targeted `ON DELETE CASCADE` only for purely dependent/internal child rows.
+- Applied relation rules:
+  - `messages.conversation_id -> conversations.id` uses `ON DELETE CASCADE`.
+  - `files.conversation_id -> conversations.id` uses `ON DELETE RESTRICT`.
+  - `message_files.message_id -> messages.id` uses `ON DELETE CASCADE`.
+  - `message_files.file_id -> files.id` uses `ON DELETE CASCADE`.
+  - `sessions.user_id -> users.id` uses `ON DELETE RESTRICT`.
+  - `settings.updated_by_user_id -> users.id` uses `ON DELETE SET NULL`.
+  - `audit_logs.actor_user_id -> users.id` uses `ON DELETE RESTRICT`.
+  - `audit_logs.target_user_id -> users.id` uses `ON DELETE SET NULL`.
+  - `heartbeat_jobs.conversation_id -> conversations.id` uses `ON DELETE RESTRICT`.
+  - `heartbeat_schedules.heartbeat_job_id -> heartbeat_jobs.id` uses `ON DELETE CASCADE`.
+  - `conversation_locks.conversation_id -> conversations.id` uses `ON DELETE RESTRICT`.
+- Value constraints:
+  - `files.size_bytes >= 0`.
+  - Role checks remain constrained to:
+    - users: `user|admin`
+    - messages: `user|assistant|system`
 
 ## Soft-delete archive semantics (`archived_at`)
 - Archivable tables: `conversations`, `messages`, `files`, `heartbeat_jobs`.

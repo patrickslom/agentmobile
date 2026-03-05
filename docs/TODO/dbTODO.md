@@ -63,11 +63,11 @@
 - [ ] Add text search indexes for MVP+ conversation search (title/content).
 
 ## 8) Constraints and Data Integrity
-- [ ] Add foreign keys for conversation/message/file relations.
-- [ ] Add cascade/archive behavior policy (avoid hard cascade delete in MVP).
-- [ ] Add check constraints for role enums (`user`, `admin`) and message roles.
-- [ ] Add uniqueness constraints where required (`users.email`, conversation lock uniqueness).
-- [ ] Add size/value constraints for configured limits where appropriate.
+- [x] Add foreign keys for conversation/message/file relations. (completed 2026-03-05)
+- [x] Add cascade/archive behavior policy (avoid hard cascade delete in MVP). (completed 2026-03-05)
+- [x] Add check constraints for role enums (`user`, `admin`) and message roles. (completed 2026-03-05)
+- [x] Add uniqueness constraints where required (`users.email`, conversation lock uniqueness). (completed 2026-03-05)
+- [x] Add size/value constraints for configured limits where appropriate. (completed 2026-03-05)
 
 ## 9) Seed and Bootstrap Data
 - [ ] Add migration/seed path for first admin user creation support.
