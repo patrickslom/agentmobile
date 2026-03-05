@@ -449,8 +449,17 @@ docker compose up -d
   - Stale recovery uses `owner_token` compare-and-release plus `last_heartbeat_at` heartbeats; stale threshold is TTL-based.
   - Migration documentation includes schema changes, TTL defaults, recovery procedure, and required lock indexes.
 - Validation commands/results:
-- Commit:
-- Push:
+  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_05` -> `20260305_06`)
+  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260305_06 (head)`)
+- Commit: `05a5724` - feat(db): add conversation locks schema with stale recovery tokens
+- Push: `origin/master` updated successfully (`efac14f` -> `05a5724`)
 - Deploy status:
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
 - Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - `wss://todo.flounderboard.com/ws` ✅ reachable/auth-enforced (`HTTP 403` with unauthenticated upgrade probe using HTTP/1.1 + valid websocket key)
 - Notes/blockers:
+  - Initial post-restart probe briefly returned `502` for `/api/health` and `/ws`; retries passed after services stabilized.
