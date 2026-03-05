@@ -257,3 +257,29 @@ docker compose up -d
 - Smoke check status:
 - Notes/blockers:
   - Unrelated workspace changes existed and were intentionally excluded from staging/commit.
+
+- Date: 2026-03-05
+- Task completed: docs/TODO/backendTODO.md :: 0) Service Architecture and Bootstrap
+- Questions asked:
+  1) Should I scaffold both API and worker entrypoints now even if worker logic is just health + placeholder modules in this section?
+  2) For logging, do you want JSON logs by default or readable text logs with request/conversation IDs?
+  3) Should health endpoints be exactly `GET /api/health` for API and `GET /health` for worker service?
+- Assumptions:
+  - API and worker are scaffolded up front with worker placeholders in `jobs`, `heartbeat`, and `scheduler`.
+  - Default logs are structured JSON with `LOG_PRETTY` env toggle for local human-readable output.
+  - Health paths are implemented as `/api/health` (API) and `/health` (worker).
+- Validation commands/results:
+  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `docker compose config` ✅
+- Commit: `42b374f` - feat(backend): bootstrap modular api/worker services with shared config and structured logging
+- Push: `origin/master` updated successfully
+- Deploy status:
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
+- Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - WebSocket handshake to `wss://todo.flounderboard.com/ws` ✅ (from `codexchat_back` container with Python `websockets`)
+  - `codexchat_worker` health (`http://127.0.0.1:8001/health` inside container) ✅
+- Notes/blockers:
+  - Initial API/WS smoke briefly returned `502` during service restart; both passed after startup stabilization.
