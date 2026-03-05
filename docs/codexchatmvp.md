@@ -401,6 +401,14 @@ Or:
 ### TLS
 - Let’s Encrypt (HTTP-01) via Traefik
 
+### Current VPS override (temporary)
+- Date: `2026-03-05`
+- Temporary routing override for active development:
+  - `todo.flounderboard.com` is routed to `codexchat_front`
+- Purpose:
+  - provide a stable HTTPS hostname while `questflow.com` DNS propagation/target updates are pending
+- This is deployment-specific and not part of the public install default.
+
 ### Edge rate limits (recommended)
 - Add a Traefik middleware to limit:
   - `POST /auth/login`
