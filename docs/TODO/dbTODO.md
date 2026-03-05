@@ -49,10 +49,10 @@
 - [x] Add stale-lock recovery strategy fields and migration notes. (completed 2026-03-05)
 
 ## 6) Archive/Soft Delete Behavior
-- [ ] Standardize `archived_at` nullable timestamp semantics across archivable tables.
-- [ ] Ensure default queries exclude archived rows.
-- [ ] Add admin/archive queries that can include archived rows.
-- [ ] Add recover/restore migration-safe workflow notes.
+- [x] Standardize `archived_at` nullable timestamp semantics across archivable tables. (completed 2026-03-05)
+- [x] Ensure default queries exclude archived rows. (completed 2026-03-05)
+- [x] Add admin/archive queries that can include archived rows. (completed 2026-03-05)
+- [x] Add recover/restore migration-safe workflow notes. (completed 2026-03-05)
 
 ## 7) Indexing and Performance
 - [ ] Add index on `conversations.updated_at` for sidebar ordering.

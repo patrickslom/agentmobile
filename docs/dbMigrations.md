@@ -70,3 +70,114 @@ alembic history
   - `ix_conversation_locks_locked_by` on `locked_by`
 - Backfill notes:
   - No backfill required for this initial lock table creation.
+
+## Soft-delete archive semantics (`archived_at`)
+- Archivable tables: `conversations`, `messages`, `files`, `heartbeat_jobs`.
+- Standard semantics (all tables):
+  - `archived_at IS NULL` => active row
+  - `archived_at IS NOT NULL` => archived row
+  - Column type is `TIMESTAMPTZ`; timestamps are DB-generated (`now()`), which Postgres stores in UTC internally.
+- Query policy:
+  - Default product queries must filter active rows only.
+  - Admin/archive views must opt in explicitly (`include_archived=True` or `only_archived=True` in query layer).
+
+### Migration-safe helper snippet (Alembic SQL)
+Use explicit `WHERE archived_at IS NULL/IS NOT NULL` guards so the operation is idempotent and safe to rerun.
+
+```python
+# Alembic upgrade() example: archive one conversation and related rows.
+op.execute(
+    sa.text(
+        """
+        UPDATE conversations
+        SET archived_at = now()
+        WHERE id = :conversation_id
+          AND archived_at IS NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+
+# Optional cascade archive in same migration/script.
+op.execute(
+    sa.text(
+        """
+        UPDATE messages
+        SET archived_at = now()
+        WHERE conversation_id = :conversation_id
+          AND archived_at IS NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+op.execute(
+    sa.text(
+        """
+        UPDATE files
+        SET archived_at = now()
+        WHERE conversation_id = :conversation_id
+          AND archived_at IS NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+op.execute(
+    sa.text(
+        """
+        UPDATE heartbeat_jobs
+        SET archived_at = now()
+        WHERE conversation_id = :conversation_id
+          AND archived_at IS NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+```
+
+```python
+# Alembic downgrade() or recovery script example: restore the same conversation tree.
+op.execute(
+    sa.text(
+        """
+        UPDATE conversations
+        SET archived_at = NULL
+        WHERE id = :conversation_id
+          AND archived_at IS NOT NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+op.execute(
+    sa.text(
+        """
+        UPDATE messages
+        SET archived_at = NULL
+        WHERE conversation_id = :conversation_id
+          AND archived_at IS NOT NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+op.execute(
+    sa.text(
+        """
+        UPDATE files
+        SET archived_at = NULL
+        WHERE conversation_id = :conversation_id
+          AND archived_at IS NOT NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+op.execute(
+    sa.text(
+        """
+        UPDATE heartbeat_jobs
+        SET archived_at = NULL
+        WHERE conversation_id = :conversation_id
+          AND archived_at IS NOT NULL
+        """
+    ),
+    {"conversation_id": "<conversation-uuid>"},
+)
+```

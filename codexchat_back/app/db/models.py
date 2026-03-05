@@ -68,6 +68,8 @@ class Conversation(Base):
         nullable=False,
         server_default=text("now()"),
     )
+    # Soft-delete marker semantics used across archivable tables:
+    # NULL => active row, non-NULL TIMESTAMPTZ => archived row.
     archived_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
 
@@ -90,6 +92,8 @@ class Message(Base):
         nullable=False,
         server_default=text("now()"),
     )
+    # Soft-delete marker semantics used across archivable tables:
+    # NULL => active row, non-NULL TIMESTAMPTZ => archived row.
     archived_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
 
@@ -111,6 +115,8 @@ class File(Base):
         nullable=False,
         server_default=text("now()"),
     )
+    # Soft-delete marker semantics used across archivable tables:
+    # NULL => active row, non-NULL TIMESTAMPTZ => archived row.
     archived_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
 
@@ -300,6 +306,8 @@ class HeartbeatJob(Base):
         nullable=False,
         server_default=text("now()"),
     )
+    # Soft-delete marker semantics used across archivable tables:
+    # NULL => active row, non-NULL TIMESTAMPTZ => archived row.
     archived_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
 
