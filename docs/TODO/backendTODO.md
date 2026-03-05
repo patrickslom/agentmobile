@@ -1,11 +1,11 @@
 # Backend TODO
 
 ## 0) Service Architecture and Bootstrap
-- [ ] Create FastAPI project for `codexchat_back` with modular domains: `auth`, `chat`, `codex`, `files`, `settings`, `admin`, `locks`.
-- [ ] Create separate worker service `codexchat_worker` in same codebase/package (`jobs`, `heartbeat`, `scheduler`).
-- [ ] Add shared config module for env loading and validation.
-- [ ] Add health endpoints for API and worker.
-- [ ] Add logging setup with request IDs and conversation IDs.
+- [x] Create FastAPI project for `codexchat_back` with modular domains: `auth`, `chat`, `codex`, `files`, `settings`, `admin`, `locks`. (completed 2026-03-05)
+- [x] Create separate worker service `codexchat_worker` in same codebase/package (`jobs`, `heartbeat`, `scheduler`). (completed 2026-03-05)
+- [x] Add shared config module for env loading and validation. (completed 2026-03-05)
+- [x] Add health endpoints for API and worker. (completed 2026-03-05)
+- [x] Add logging setup with request IDs and conversation IDs. (completed 2026-03-05)
 
 ## 1) API Surface and Routing Contract
 - [ ] Implement API prefix routing under `/api`.

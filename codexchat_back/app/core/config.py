@@ -7,6 +7,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = Field(alias="DATABASE_URL")
+    app_env: str = Field(default="production", alias="APP_ENV")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_pretty: bool = Field(default=False, alias="LOG_PRETTY")
+    api_port: int = Field(default=8000, alias="API_PORT")
+    worker_port: int = Field(default=8001, alias="WORKER_PORT")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -24,6 +29,24 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must use a PostgreSQL driver URL")
 
         return value
+
+    @field_validator("app_env")
+    @classmethod
+    def validate_app_env(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        allowed = {"development", "staging", "production", "test"}
+        if normalized not in allowed:
+            raise ValueError(f"APP_ENV must be one of: {', '.join(sorted(allowed))}")
+        return normalized
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if normalized not in allowed:
+            raise ValueError(f"LOG_LEVEL must be one of: {', '.join(sorted(allowed))}")
+        return normalized
 
 
 @lru_cache

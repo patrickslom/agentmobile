@@ -28,6 +28,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://codexchat:codexchat@codexchat_db:5432/codexchat}
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_PRETTY: ${LOG_PRETTY:-false}
     networks:
       - n8n_default
       - codexchat_internal
@@ -40,6 +43,24 @@ services:
       - traefik.http.routers.codexchat-back.tls=true
       - traefik.http.routers.codexchat-back.tls.certresolver=mytlschallenge
       - traefik.http.services.codexchat-back.loadbalancer.server.port=8000
+
+  codexchat_worker:
+    container_name: codexchat_worker
+    build:
+      context: ./codexchat_back
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      codexchat_db:
+        condition: service_healthy
+    command: ["uvicorn", "app.worker.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://codexchat:codexchat@codexchat_db:5432/codexchat}
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_PRETTY: ${LOG_PRETTY:-false}
+    networks:
+      - codexchat_internal
 
   codexchat_front:
     container_name: codexchat_front
