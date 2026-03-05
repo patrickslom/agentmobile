@@ -276,11 +276,17 @@ docker compose up -d
   - `cd codexchat_back && python3 -m compileall app alembic` ✅
   - `cd /root/codexchat && docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_04` -> `20260305_05`)
   - `cd /root/codexchat && docker compose run --rm codexchat_back alembic current` ✅ (`20260305_05 (head)`)
-- Commit:
-- Push:
+- Commit: `54283a0` - feat(db): add heartbeat jobs, schedules, and runs schema
+- Push: `origin/master` updated successfully (`290a97f` -> `54283a0`)
 - Deploy status:
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
 - Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/ws` with websocket upgrade headers ✅ (HTTP 403 expected without authenticated session)
 - Notes/blockers:
+  - Initial smoke probe returned transient `502` during service warm-up; follow-up checks passed.
 
 - Date: 2026-03-05
 - Task completed: docs/TODO/dbTODO.md :: 3) Settings and Admin Tables
