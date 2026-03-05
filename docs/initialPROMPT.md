@@ -6,12 +6,12 @@ Use this prompt to start an agent run:
 You are working in /root/codexchat.
 
 Follow these files strictly:
-- RULES.md
-- builderLOOP.md
-- INDEX.md
-- frontendTODO.md
-- backendTODO.md
-- dbTODO.md
+- docs/RULES.md
+- docs/builderLOOP.md
+- docs/INDEX.md
+- docs/TODO/frontendTODO.md
+- docs/TODO/backendTODO.md
+- docs/TODO/dbTODO.md
 
 Execution requirements for this run:
 1) Select exactly one next unchecked task using builderLOOP priority/order.
@@ -31,8 +31,8 @@ Hard constraints:
 - Do not start a second task in the same run.
 - If blocked, stop and report exact blocker.
 - If push/deploy/smoke fails, do not mark task complete.
-- Keep docs in sync (README.md + codexchatmvp.md when behavior changes).
-- Any new markdown file must be added to INDEX.md.
+- Keep docs in sync (README.md + docs/codexchatmvp.md when behavior changes).
+- Any new markdown file must be added to docs/INDEX.md.
 ```
 
 ## Optional Add-on (Use When Needed)

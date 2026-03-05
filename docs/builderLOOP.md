@@ -6,16 +6,16 @@ Repeatable execution loop for building this project task-by-task from TODO files
 Use this loop every run.
 
 ## Inputs
-- `frontendTODO.md`
-- `backendTODO.md`
-- `dbTODO.md`
+- `docs/TODO/frontendTODO.md`
+- `docs/TODO/backendTODO.md`
+- `docs/TODO/dbTODO.md`
 - Current git repo with remote `origin`
 
 ## Loop (One Task Per Run)
 1. Read all TODO files and select the next unchecked task (`- [ ]`) in priority order:
-   1) `dbTODO.md`
-   2) `backendTODO.md`
-   3) `frontendTODO.md`
+   1) `docs/TODO/dbTODO.md`
+   2) `docs/TODO/backendTODO.md`
+   3) `docs/TODO/frontendTODO.md`
 2. Announce selected task to user with exact file + section + line context.
 3. Ask user exactly 3 short questions before implementation.
 4. Record assumptions from answers in the run log section (append at end of this file).

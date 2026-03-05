@@ -3,11 +3,11 @@
 ## Documentation Rules
 - Any new `.md` file added to this directory must also be added to `INDEX.md` with a short summary.
 - If an existing `.md` file is renamed or removed, `INDEX.md` must be updated in the same change.
-- Product behavior changes must update both `README.md` (user-facing) and `codexchatmvp.md` (spec-facing).
+- Product behavior changes must update both `README.md` (user-facing) and `docs/codexchatmvp.md` (spec-facing).
 - TODO progress updates must only check off tasks that are actually implemented and validated.
 
 ## Build Execution Rules
-- Follow `builderLOOP.md` for execution order and one-task-per-run behavior.
+- Follow `docs/builderLOOP.md` for execution order and one-task-per-run behavior.
 - Start each run by selecting the next unchecked task from TODO files in priority order.
 - Ask the user 3 short questions before implementing each task.
 - After each completed task: validate, mark TODO complete, commit, push to `master`, rebuild containers, smoke check, then stop.
