@@ -22,14 +22,14 @@ export default async function LoginPage() {
 
   return (
     <section className="mx-auto flex min-h-screen min-h-dvh w-full max-w-md items-center px-6 py-12">
-      <div className="w-full rounded-2xl border border-zinc-300 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-black">
+      <div className="w-full rounded-2xl border border-border bg-background p-6 shadow-sm">
         <div className="flex items-center gap-3">
           <WinkingLogo size={56} />
           <p className="text-xs font-semibold tracking-[0.18em] uppercase text-zinc-500 dark:text-zinc-400">
             CodexChat
           </p>
         </div>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-black dark:text-zinc-100">
+        <h1 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">
           Sign in
         </h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
@@ -47,7 +47,7 @@ export default async function LoginPage() {
               name="email"
               autoComplete="email"
               required
-              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-black dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-300"
+              className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-foreground"
             />
           </label>
 
@@ -60,13 +60,13 @@ export default async function LoginPage() {
               name="password"
               autoComplete="current-password"
               required
-              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-black dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-300"
+              className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-foreground"
             />
           </label>
 
           <button
             type="submit"
-            className="mt-2 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-black dark:hover:bg-zinc-300"
+            className="mt-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90"
           >
             Sign in
           </button>

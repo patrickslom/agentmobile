@@ -3,7 +3,7 @@ import WinkingLogo from "./components/winking-logo";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white px-6 py-20 text-black">
+    <main className="min-h-screen bg-background px-6 py-20 text-foreground">
       <section className="mx-auto flex w-full max-w-4xl flex-col gap-8">
         <div className="flex items-center gap-3">
           <WinkingLogo />
@@ -16,12 +16,12 @@ export default function Home() {
           From fresh VPS to live Codex chat in minutes.
         </h1>
 
-        <p className="max-w-3xl text-base text-zinc-700 sm:text-lg">
+        <p className="max-w-3xl text-base text-zinc-700 sm:text-lg dark:text-zinc-300">
           Run the installer, open your domain, log in, and start streaming
           Codex responses from desktop or phone.
         </p>
 
-        <p className="max-w-3xl text-base text-zinc-700 sm:text-lg">
+        <p className="max-w-3xl text-base text-zinc-700 sm:text-lg dark:text-zinc-300">
           No Telegram flow. Just a clean web app for real chat workflows and
           file-based collaboration.
         </p>
@@ -29,7 +29,7 @@ export default function Home() {
         <div>
           <Link
             href="/login"
-            className="inline-flex rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+            className="inline-flex rounded-lg bg-foreground px-5 py-2.5 text-sm font-medium text-background transition hover:opacity-90"
           >
             Go to login
           </Link>

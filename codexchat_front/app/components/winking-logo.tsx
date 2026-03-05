@@ -15,6 +15,9 @@ export default function WinkingLogo({ size = 112 }: WinkingLogoProps) {
 
   useEffect(() => {
     let timeoutId: number | undefined;
+    const preloadImage = new window.Image();
+    preloadImage.src = "/brand/gnome-wink.png";
+    void preloadImage.decode?.().catch(() => undefined);
 
     const intervalId = window.setInterval(() => {
       setIsWinking(true);
