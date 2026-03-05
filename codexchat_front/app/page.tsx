@@ -1,17 +1,12 @@
-import Image from "next/image";
+import Link from "next/link";
+import WinkingLogo from "./components/winking-logo";
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-white px-6 py-20 text-black">
       <section className="mx-auto flex w-full max-w-4xl flex-col gap-8">
         <div className="flex items-center gap-3">
-          <Image
-            src="/favicon.svg"
-            alt="CodexChat logo"
-            width={112}
-            height={112}
-            priority
-          />
+          <WinkingLogo />
           <p className="text-xs font-semibold tracking-[0.2em] uppercase">
             CodexChat
           </p>
@@ -30,6 +25,15 @@ export default function Home() {
           No Telegram flow. Just a clean web app for real chat workflows and
           file-based collaboration.
         </p>
+
+        <div>
+          <Link
+            href="/login"
+            className="inline-flex rounded-lg bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800"
+          >
+            Go to login
+          </Link>
+        </div>
       </section>
     </main>
   );

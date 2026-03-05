@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import WinkingLogo from "../components/winking-logo";
 
 const SESSION_COOKIE_KEYS = [
   "codexchat_session",
@@ -22,9 +23,12 @@ export default async function LoginPage() {
   return (
     <section className="mx-auto flex min-h-screen min-h-dvh w-full max-w-md items-center px-6 py-12">
       <div className="w-full rounded-2xl border border-zinc-300 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-black">
-        <p className="text-xs font-semibold tracking-[0.18em] uppercase text-zinc-500 dark:text-zinc-400">
-          CodexChat
-        </p>
+        <div className="flex items-center gap-3">
+          <WinkingLogo size={56} />
+          <p className="text-xs font-semibold tracking-[0.18em] uppercase text-zinc-500 dark:text-zinc-400">
+            CodexChat
+          </p>
+        </div>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-black dark:text-zinc-100">
           Sign in
         </h1>
