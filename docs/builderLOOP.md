@@ -548,8 +548,17 @@ EOF
   - `cd codexchat_front && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next dev` ✅
   - `cd codexchat_front && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next start` ✅
 - Commit:
-- Push:
+  - `fe12622` - feat(frontend): verify branding icons and add automated favicon/manifest checks
+  - `5b02c58` - fix(frontend): install libc6-compat in alpine image for Next.js SWC
+- Push: `origin/master` updated successfully (`877ba2e` -> `5b02c58`)
 - Deploy status:
+  - initial `docker compose build` failed on `codexchat_front` due missing Alpine glibc compatibility for Next.js SWC (`ld-linux-x86-64.so.2`)
+  - follow-up deploy after Dockerfile fix succeeded: `docker compose build` ✅ and `docker compose up -d` ✅
 - Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - websocket route `/ws` ✅ reachable/auth-enforced (`HTTP 403` with HTTP/1.1 websocket upgrade probe)
+  - icon assets ✅ (HTTP 200): `/favicon.ico`, `/favicon.svg`, `/favicon-96x96.png`, `/apple-touch-icon.png`, `/site.webmanifest`, `/web-app-manifest-192x192.png`, `/web-app-manifest-512x512.png`
+  - `cd codexchat_front && npm run check:icons -- --base-url=https://todo.flounderboard.com` ✅
 - Notes/blockers:
   - `docs/TODO/frontendTODO.md` contained unrelated pre-existing unstaged changes in section `2)`; commit staging was narrowed to only section `2.1)` updates for this run.
