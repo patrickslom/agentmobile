@@ -11,10 +11,13 @@ export default async function AdminSettingsPage() {
   return (
     <section className="rounded-xl border border-border bg-muted p-6">
       <h1 className="text-2xl font-semibold tracking-tight">Admin Settings</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+      <p className="mt-2 text-sm text-muted-foreground">
         Admin-only settings route is ready at <code>/settings/admin</code>.
       </p>
-      <Link href="/settings" className="mt-4 inline-flex text-sm underline-offset-4 hover:underline">
+      <Link
+        href="/settings"
+        className="mt-4 inline-flex text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+      >
         Back to settings
       </Link>
     </section>

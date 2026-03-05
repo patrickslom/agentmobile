@@ -1,12 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --background: #ffffff;
-  --foreground: #111111;
-  --muted: #f5f5f5;
-  --border: #d4d4d4;
-  --accent: #000000;
+  --foreground: #101010;
+  --muted: #f4f4f4;
+  --muted-foreground: #525252;
+  --border: #d6d6d6;
+  --accent: #0f0f0f;
+  --accent-foreground: #ffffff;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -17,19 +19,38 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #080808;
+  --foreground: #f4f4f4;
+  --muted: #141414;
+  --muted-foreground: #b0b0b0;
+  --border: #333333;
+  --accent: #f0f0f0;
+  --accent-foreground: #111111;
+}
+
+[data-theme="system"] {
+  color-scheme: light dark;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;
-    --foreground: #f5f5f5;
-    --muted: #111111;
-    --border: #3f3f46;
-    --accent: #ffffff;
+  [data-theme="system"] {
+    --background: #080808;
+    --foreground: #f4f4f4;
+    --muted: #141414;
+    --muted-foreground: #b0b0b0;
+    --border: #333333;
+    --accent: #f0f0f0;
+    --accent-foreground: #111111;
   }
 }
 
@@ -37,6 +58,15 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+p {
+  color: var(--muted-foreground);
 }
 
 .app-shell {
@@ -53,6 +83,45 @@ body {
 .app-shell__content {
   min-height: calc(100vh - var(--safe-top) - var(--safe-bottom));
   min-height: calc(100dvh - var(--safe-top) - var(--safe-bottom));
-  width: min(100%, 1200px);
-  margin: 0 auto;
+  width: 100%;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+pre,
+code {
+  font-family: var(--font-geist-mono), monospace;
+}
+
+pre {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+}
+
+code {
+  border: 1px solid var(--border);
+  background: var(--muted);
+  border-radius: 0.35rem;
+  font-size: 0.875em;
+  padding: 0.1rem 0.35rem;
+}
+
+pre code {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
 }
