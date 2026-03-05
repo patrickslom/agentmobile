@@ -24,7 +24,7 @@ You are working in /root/codexchat.
   available).
   8) Update the TODO checklist items in that section to
   complete with date notes.
-  9) Commit with a clear message.
+  9) Commit with a clear message, staging only files you edited for this run unless I explicitly say otherwise.
   10) Push to origin master.
   11) Rebuild/restart containers.
   12) Run smoke checks (web reachable on active dev host).
@@ -45,5 +45,6 @@ You are working in /root/codexchat.
   Hard constraints:
   - Do not start a second `##` section in the same run.
   - If blocked, stop and report exact blocker.
+  - If unrelated files are already modified, do not ask what to do; leave them unstaged and commit only files you edited in this run.
   - If push/deploy/smoke fails, do not mark task complete.
   - Keep changes tightly scoped to the selected section.

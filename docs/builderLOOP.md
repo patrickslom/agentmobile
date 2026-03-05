@@ -26,7 +26,7 @@ Use this loop every run.
    - build command (if available)
 7. If validation fails, fix and re-run until pass or clearly blocked.
 8. Update TODO item from `- [ ]` to `- [x]` with completion note/date.
-9. Commit changes with a task-specific message.
+9. Commit only files modified in this run with a task-specific message.
 10. Push commit to `master` on GitHub (`origin master`).
 11. Rebuild/restart containers on VPS:
    - `docker compose build`
@@ -44,7 +44,7 @@ Use this loop every run.
 
 ## Required Guardrails
 - Do not start a new task in the same run after marking one complete.
-- If repo has unrelated dirty changes, do not revert them; work around them.
+- If repo has unrelated dirty changes, do not revert them and do not ask what to do; leave them unstaged and continue with only files you edited for the selected task.
 - If blocked by missing secrets/infra, stop and report exact blocker.
 - If push fails, do not mark task complete.
 - If deploy/smoke checks fail, report and optionally rollback before stopping.
@@ -60,7 +60,7 @@ A task is done only when all are true:
 - validation run
 - TODO checkbox updated
 - commit created
-- pushed to `master`
+- pushed to `master` with only run-modified files (unless user explicitly approved broader scope)
 - containers rebuilt/restarted
 - smoke checks passed
 
@@ -90,7 +90,7 @@ git rev-parse --short HEAD
 # (project-specific commands)
 
 # commit + push
-git add -A
+git add <paths-you-edited>
 git commit -m "feat: complete <todo-task-id>"
 git push origin master
 

@@ -13,8 +13,8 @@
 - Follow `docs/builderLOOP.md` for execution order and one-task-per-run behavior.
 - Start each run by selecting the next unchecked task from TODO files in priority order.
 - Ask the user 3 short questions before implementing each task.
-- After each completed task: validate, mark TODO complete, commit, push to `master`, rebuild containers, smoke check, then stop.
-- Commit/push rule: write context-rich commit messages that clearly describe what changed, why, and major files affected.
+- After each completed task: validate, mark TODO complete, commit only files modified in this run, push to `master`, rebuild containers, smoke check, then stop.
+- Commit/push rule: write context-rich commit messages that clearly describe what changed, why, and major files affected. Stage only files you modified for the selected task unless the user explicitly requests a broader commit.
 
 ## Safety and Deployment Rules
 - Never mark a task complete if push or deploy fails.
