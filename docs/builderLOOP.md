@@ -112,6 +112,25 @@ docker compose up -d
 - Notes/blockers:
 
 - Date: 2026-03-05
+- Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add app shell layout with responsive viewport and safe-area handling.
+- Questions asked:
+  1) Should this app shell be implemented in `codexchat_front/app/layout.tsx` with a reusable wrapper component?
+  2) Should safe-area support target `env(safe-area-inset-*)` for iOS-style notches with fallbacks to `0px`?
+  3) Should I include only structural shell styling now (no auth/nav logic), keeping scope strictly to this checklist item?
+- Assumptions:
+  - User approved structural-only scope and no auth/nav behavior in this task.
+  - App shell is implemented directly in `app/layout.tsx` with a simple wrapper + main content container.
+  - Safe-area support uses `env(safe-area-inset-*)` variables with `0px` fallback values.
+- Validation commands/results:
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+
+- Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add global style tokens for black/white theme and dark mode variables.
 - Questions asked:
   1) Should tokens be defined in `codexchat_front/app/globals.css` using CSS custom properties?
