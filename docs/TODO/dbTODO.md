@@ -8,16 +8,16 @@
 - [x] Add startup DB connectivity check. (completed 2026-03-05)
 
 ## 1) Core Schema (Global Shared Model)
-- [ ] Create `users` table:
-- [ ] `id`, `email` (unique), `password_hash`, `role`, `is_active`, `force_password_reset`, `created_at`, `updated_at`.
-- [ ] Create `conversations` table (global shared):
-- [ ] `id`, `title`, `codex_thread_id`, `created_at`, `updated_at`, `archived_at`.
-- [ ] Create `messages` table:
-- [ ] `id`, `conversation_id`, `role`, `content`, `created_at`, `archived_at`.
-- [ ] Create `files` table:
-- [ ] `id`, `conversation_id`, `original_name`, `storage_path`, `mime_type`, `size_bytes`, `created_at`, `archived_at`.
-- [ ] Create `message_files` join table:
-- [ ] `id`, `message_id`, `file_id`, `created_at`.
+- [x] Create `users` table: (completed 2026-03-05)
+- [x] `id`, `email` (unique), `password_hash`, `role`, `is_active`, `force_password_reset`, `created_at`, `updated_at`. (completed 2026-03-05)
+- [x] Create `conversations` table (global shared): (completed 2026-03-05)
+- [x] `id`, `title`, `codex_thread_id`, `created_at`, `updated_at`, `archived_at`. (completed 2026-03-05)
+- [x] Create `messages` table: (completed 2026-03-05)
+- [x] `id`, `conversation_id`, `role`, `content`, `created_at`, `archived_at`. (completed 2026-03-05)
+- [x] Create `files` table: (completed 2026-03-05)
+- [x] `id`, `conversation_id`, `original_name`, `storage_path`, `mime_type`, `size_bytes`, `created_at`, `archived_at`. (completed 2026-03-05)
+- [x] Create `message_files` join table: (completed 2026-03-05)
+- [x] `id`, `message_id`, `file_id`, `created_at`. (completed 2026-03-05)
 
 ## 2) Auth and Session Support Tables
 - [ ] Create `sessions` table for cookie auth sessions.
