@@ -8,8 +8,8 @@ export default function Home() {
           <Image
             src="/favicon.svg"
             alt="CodexChat logo"
-            width={28}
-            height={28}
+            width={112}
+            height={112}
             priority
           />
           <p className="text-xs font-semibold tracking-[0.2em] uppercase">
