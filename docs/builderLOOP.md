@@ -191,3 +191,29 @@ docker compose up -d
 - Deploy status:
 - Smoke check status:
 - Notes/blockers:
+
+- Date: 2026-03-05
+- Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add API base URL and WebSocket URL environment wiring.
+- Questions asked:
+  1) Should I wire this as `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_WS_URL` in frontend env files?
+  2) Should WebSocket default be derived from API URL when `NEXT_PUBLIC_WS_URL` is unset?
+  3) Should I add a small typed helper in `lib/` for reading/validating these URLs at runtime?
+- Assumptions:
+  - User clarified preferred behavior is domain-driven routing: user provides a domain and frontend should target `<domain>/api` and `<domain>/ws`.
+  - `NEXT_PUBLIC_APP_ORIGIN` is the primary frontend input, with optional overrides `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_WS_URL`.
+  - Docker build wiring should pass public env values at build-time so Next.js client configuration is consistent in container builds.
+- Validation commands/results:
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+  - `docker compose config` ✅ (rendered successfully; warning observed when `APP_DOMAIN` is unset in shell env)
+- Commit: `e91dee6` - feat(frontend): wire API and websocket URLs from app domain
+- Push: `origin/master` updated successfully
+- Deploy status:
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
+- Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ⚠️ (HTTP 404; backend endpoint not implemented/routed yet)
+  - `https://todo.flounderboard.com/ws` with upgrade headers ⚠️ (HTTP 404; websocket route not implemented/routed yet)
+- Notes/blockers:
+  - Frontend task completed and deployed; API/WS smoke checks remain expectedly unavailable until backend TODO items are implemented.
