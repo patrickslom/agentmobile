@@ -211,6 +211,27 @@ docker compose up -d
 - Deploy status:
   - `docker compose build` ✅
   - `docker compose up -d` ✅
+
+- Date: 2026-03-05
+- Task completed: docs/TODO/dbTODO.md :: 2) Auth and Session Support Tables
+- Questions asked:
+  1) Should `sessions.id` be UUID with `gen_random_uuid()` like existing core tables?
+  2) Should session expiration use `expires_at TIMESTAMPTZ` plus `revoked_at TIMESTAMPTZ NULL` for explicit invalidation?
+  3) For `auth_attempts.key`, do you want a single text key format with a unique index?
+- Assumptions:
+  - `sessions.id` uses UUID primary key with `gen_random_uuid()`.
+  - Session rows include `token_hash` (opaque token hash), `created_at`, optional `last_seen_at`, `expires_at`, and nullable `revoked_at`.
+  - `auth_attempts.key` is canonical/authoritative lookup with unique index.
+  - `auth_attempts` also stores nullable `email` and `ip` fields for reporting/debug.
+- Validation commands/results:
+  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_02` -> `20260305_03`)
+  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260305_03 (head)`)
+- Commit: `fd4f186` - feat(db): add sessions and auth_attempts schema for session auth fallback
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
 - Smoke check status:
   - `https://todo.flounderboard.com/` ✅ (HTTP 200)
   - `https://todo.flounderboard.com/api/health` ⚠️ (HTTP 404; backend endpoint not implemented/routed yet)
