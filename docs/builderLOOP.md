@@ -310,3 +310,24 @@ docker compose up -d
   - `codexchat_worker` health (`http://127.0.0.1:8001/health` inside container) ✅
 - Notes/blockers:
   - Initial API/WS smoke briefly returned `502` during service restart; both passed after startup stabilization.
+
+- Date: 2026-03-05
+- Task completed: docs/TODO/backendTODO.md :: 1) API Surface and Routing Contract
+- Questions asked:
+  1) Should I enforce a single global API prefix by mounting all REST routers under `/api` (leaving non-API routes only for health/docs as needed)?
+  2) For `/ws`, should authentication be optional for now (routing contract only) or require session validation immediately?
+  3) For the JSON error envelope, should I use `{ "error": { "code", "message", "details", "request_id" } }` as the standard shape?
+- Assumptions:
+  - All business REST endpoints must remain under `/api`; non-business health probes can stay outside `/api`.
+  - `/ws` must enforce authentication immediately during websocket upgrade and reject unauthorized clients.
+  - Error envelopes must use stable `code`, always include `request_id`, and keep `details` consistently as an object.
+  - `AUTH_INVALID`, `RATE_LIMITED`, `VALIDATION_ERROR`, `NOT_FOUND`, and `INTERNAL` are treated as stable baseline codes.
+- Validation commands/results:
+  - `cd codexchat_back && python3 -m compileall app` ✅
+  - `cd codexchat_back && python3 -m compileall alembic` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+  - Websocket auth in this section uses a transitional cookie format (`codexchat_session` as user UUID) until full signed session persistence is implemented in section 2.

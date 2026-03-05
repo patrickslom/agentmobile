@@ -8,11 +8,11 @@
 - [x] Add logging setup with request IDs and conversation IDs. (completed 2026-03-05)
 
 ## 1) API Surface and Routing Contract
-- [ ] Implement API prefix routing under `/api`.
-- [ ] Implement websocket endpoint at `/ws`.
-- [ ] Ensure same-domain contract: `/` frontend, `/api/*` backend, `/ws` backend.
-- [ ] Add consistent JSON error envelope format.
-- [ ] Add OpenAPI tags grouped by domain.
+- [x] Implement API prefix routing under `/api`. (completed 2026-03-05)
+- [x] Implement websocket endpoint at `/ws`. (completed 2026-03-05)
+- [x] Ensure same-domain contract: `/` frontend, `/api/*` backend, `/ws` backend. (completed 2026-03-05)
+- [x] Add consistent JSON error envelope format. (completed 2026-03-05)
+- [x] Add OpenAPI tags grouped by domain. (completed 2026-03-05)
 
 ## 2) Core Security and Sessions
 - [ ] Implement cookie-based session auth with secure/httpOnly cookies.
