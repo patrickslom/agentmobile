@@ -5,7 +5,7 @@
 - [x] Set up base folder structure: `app/`, `components/`, `lib/`, `hooks/`, `types/`. (completed 2026-03-05)
 - [x] Add global style tokens for black/white theme and dark mode variables. (completed 2026-03-05)
 - [x] Add app shell layout with responsive viewport and safe-area handling. (completed 2026-03-05)
-- [ ] Add API base URL and WebSocket URL environment wiring.
+- [x] Add API base URL and WebSocket URL environment wiring. (completed 2026-03-05)
 
 ## 1) Routing and App Shell
 - [ ] Create route: `/login`.
