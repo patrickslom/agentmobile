@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:icons": "node scripts/verify-icons.mjs"
   },
   "dependencies": {
     "next": "16.1.6",

@@ -25,8 +25,8 @@
 
 ## 2.1) Branding Icons + Favicons
 - [x] Flatten favicon/icon assets into `public/`, wire metadata in `app/layout.tsx`, and remove default `app/favicon.ico`. (completed 2026-03-05)
-- [ ] Verify browser tab icon, iOS home screen icon, and PWA manifest icons resolve in local dev and production build.
-- [ ] Ensure browser tab icon, iOS home screen icon, and PWA manifest icons resolve in local dev and production build.
+- [x] Verify browser tab icon, iOS home screen icon, and PWA manifest icons resolve in local dev and production build. (completed 2026-03-05; verified via `npm run check:icons`, `npm run check:icons -- --base-url=http://127.0.0.1:3000` on dev/start, and production HTTP smoke 200s)
+- [x] Ensure browser tab icon, iOS home screen icon, and PWA manifest icons resolve in local dev and production build. (completed 2026-03-05; duplicate checklist item closed using same verification evidence as above)
 
 ## 3) Login UX
 - [ ] Build login form (email/password).

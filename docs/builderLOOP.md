@@ -475,3 +475,26 @@ done
   - `wss://todo.flounderboard.com/ws` ✅ reachable/auth-enforced (`HTTP 403` with unauthenticated upgrade probe using HTTP/1.1 + valid websocket key)
 - Notes/blockers:
   - Initial post-restart probe briefly returned `502` for `/api/health` and `/ws`; retries passed after services stabilized.
+
+- Date: 2026-03-05
+- Task completed: docs/TODO/frontendTODO.md :: 2.1) Branding Icons + Favicons
+- Questions asked:
+  1) Should I treat the two unchecked icon-verification items as duplicates and complete both from one verification pass?
+  2) Is it acceptable to validate icon resolution via build output/static asset checks plus HTTP smoke checks, instead of manual iOS device install?
+  3) Should I add a tiny automated check script/test for favicon/manifest icon paths if one does not already exist?
+- Assumptions:
+  - User approved treating the two unchecked icon-verification checklist entries as duplicates completed by one shared verification pass.
+  - MVP validation scope uses filesystem/build-output checks plus HTTP 200 smoke checks; real iOS install testing is deferred.
+  - Added automated icon verification script parses `site.webmanifest`, validates referenced files exist, checks required icon files/metadata references, and supports optional HTTP endpoint verification.
+- Validation commands/results:
+  - `cd codexchat_front && npm run check:icons` ✅
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+  - `cd codexchat_front && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next dev` ✅
+  - `cd codexchat_front && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next start` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+  - `docs/TODO/frontendTODO.md` contained unrelated pre-existing unstaged changes in section `2)`; commit staging was narrowed to only section `2.1)` updates for this run.
