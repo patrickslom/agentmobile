@@ -112,6 +112,25 @@ docker compose up -d
 - Notes/blockers:
 
 - Date: 2026-03-05
+- Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add global style tokens for black/white theme and dark mode variables.
+- Questions asked:
+  1) Should tokens be defined in `codexchat_front/app/globals.css` using CSS custom properties?
+  2) Should we include only core semantic tokens now (`background`, `foreground`, `muted`, `border`, `accent`)?
+  3) Should dark mode be wired via `prefers-color-scheme` with no manual toggle yet?
+- Assumptions:
+  - User approved all three questions.
+  - This task is limited to global token definition and theme variable wiring only.
+  - Dark mode behavior follows OS/browser preference only for now.
+- Validation commands/results:
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+
+- Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Create Next.js app with TypeScript and Tailwind in `codexchat_front`.
 - Questions asked:
   1) Start with frontend bootstrap first despite default DB/backend priority?

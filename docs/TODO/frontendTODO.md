@@ -3,7 +3,7 @@
 ## 0) Project Bootstrap
 - [x] Create Next.js app with TypeScript and Tailwind in `codexchat_front`. (completed 2026-03-05)
 - [x] Set up base folder structure: `app/`, `components/`, `lib/`, `hooks/`, `types/`. (completed 2026-03-05)
-- [ ] Add global style tokens for black/white theme and dark mode variables.
+- [x] Add global style tokens for black/white theme and dark mode variables. (completed 2026-03-05)
 - [ ] Add app shell layout with responsive viewport and safe-area handling.
 - [ ] Add API base URL and WebSocket URL environment wiring.
 
