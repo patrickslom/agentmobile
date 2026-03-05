@@ -7,6 +7,12 @@ Self-hosted ChatGPT-style web app for running Codex on your VPS.
 - Current project domain: `www.questflow.net`
 - GitHub repository: `https://github.com/patrickslom/codexchat`
 
+## Current Landing Page Copy
+
+- Headline: `From fresh VPS to live Codex chat in minutes.`
+- Supporting copy: `Run the installer, open your domain, log in, and start streaming Codex responses from desktop or phone.`
+- Supporting copy: `No Telegram flow. Just a clean web app for real chat workflows and file-based collaboration.`
+
 ## Warning
 
 Use at your own risk.
