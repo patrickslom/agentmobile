@@ -16,11 +16,11 @@
 - [x] Add logout action in shell. (completed 2026-03-05)
 
 ## 2) Theme and Visual System
-- [ ] Implement ChatGPT-like structure and spacing system (desktop + mobile).
-- [ ] Implement default light mode.
-- [ ] Implement dark mode toggle persisted to local storage.
-- [ ] Ensure black/white-first palette in both themes.
-- [ ] Add typography and code block styling.
+- [x] Implement ChatGPT-like structure and spacing system (desktop + mobile). (completed 2026-03-05; user override accepted despite ws smoke failure)
+- [x] Implement default light mode. (completed 2026-03-05; user override accepted despite ws smoke failure)
+- [x] Implement dark mode toggle persisted to local storage. (completed 2026-03-05; user override accepted despite ws smoke failure)
+- [x] Ensure black/white-first palette in both themes. (completed 2026-03-05; user override accepted despite ws smoke failure)
+- [x] Add typography and code block styling. (completed 2026-03-05; user override accepted despite ws smoke failure)
 - [x] Add brand logo beside `CodexChat` on the landing page header and scale for visibility. (completed 2026-03-05)
 
 ## 2.1) Branding Icons + Favicons
@@ -29,11 +29,11 @@
 - [x] Ensure browser tab icon, iOS home screen icon, and PWA manifest icons resolve in local dev and production build. (completed 2026-03-05; duplicate checklist item closed using same verification evidence as above)
 
 ## 3) Login UX
-- [ ] Build login form (email/password).
-- [ ] Connect login form to backend session endpoint.
-- [ ] Show generic auth errors.
-- [ ] Handle lockout response states with clear user message.
-- [ ] Redirect successful login to `/chat`.
+- [x] Build login form (email/password). (completed 2026-03-05)
+- [x] Connect login form to backend session endpoint. (completed 2026-03-05)
+- [x] Show generic auth errors. (completed 2026-03-05)
+- [x] Handle lockout response states with clear user message. (completed 2026-03-05)
+- [x] Redirect successful login to `/chat`. (completed 2026-03-05)
 
 ## 4) Chat Layout (Desktop + Mobile)
 - [ ] Build desktop split layout: left sidebar + main pane.

@@ -259,6 +259,26 @@ EOF
   - `docker compose up -d` ✅
 
 - Date: 2026-03-05
+- Task completed: docs/TODO/frontendTODO.md :: 3) Login UX
+- Questions asked:
+  1) Should login submit to `POST /api/auth/login` with JSON `{ email, password }`?
+  2) Should failed login always show `Invalid email or password` unless backend explicitly signals lockout?
+  3) Should lockout responses show backend retry timing when available, otherwise `Too many attempts. Try again later.`?
+- Assumptions:
+  - Login request body is `{ "email": "...", "password": "..." }` to `POST /api/auth/login`.
+  - Backend sets the session cookie (`httpOnly`) on successful login; frontend handles redirect after success.
+  - Generic auth failure message is always `Invalid email or password` unless lockout is explicitly signaled.
+  - Lockout UX shows `Too many attempts. Try again in X minutes.` when retry timing exists, otherwise fallback message.
+- Validation commands/results:
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+
+- Date: 2026-03-05
 - Task completed: docs/TODO/dbTODO.md :: 8) Constraints and Data Integrity
 - Questions asked:
   1) Should FK behavior default to `ON DELETE RESTRICT` for MVP?

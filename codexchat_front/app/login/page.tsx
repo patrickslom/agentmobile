@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import WinkingLogo from "../components/winking-logo";
 import { hasSessionCookie } from "@/lib/auth-session";
+import LoginForm from "./login-form";
 
 type LoginPageProps = {
   searchParams: Promise<{ logged_out?: string }>;
@@ -38,40 +39,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
         ) : null}
 
-        <form className="mt-6 flex flex-col gap-4">
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="font-medium text-zinc-800 dark:text-zinc-200">
-              Email
-            </span>
-            <input
-              type="email"
-              name="email"
-              autoComplete="email"
-              required
-              className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-foreground"
-            />
-          </label>
-
-          <label className="flex flex-col gap-2 text-sm">
-            <span className="font-medium text-zinc-800 dark:text-zinc-200">
-              Password
-            </span>
-            <input
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              required
-              className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-foreground"
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="mt-2 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90"
-          >
-            Sign in
-          </button>
-        </form>
+        <LoginForm />
 
         <Link
           href="/"
