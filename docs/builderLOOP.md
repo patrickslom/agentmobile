@@ -601,9 +601,16 @@ EOF
   - `cd codexchat_back && python3 - <<'PY' ... PY` ⚠️ failed locally (`ModuleNotFoundError: argon2`) because host Python env is missing deps
   - `docker compose run --rm codexchat_back python -m compileall app` ✅
   - `docker compose run --rm codexchat_back python - <<'PY' from app.main import app ... PY` ✅ (`startup_import_ok True`)
-- Commit:
-- Push:
+- Commit: `3ec2bde` - feat(backend): implement secure sessions, csrf, argon2 auth, and lockout controls
+- Push: `origin/master` updated successfully (`36c222f` -> `3ec2bde`)
 - Deploy status:
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
+  - Lock coordination via `LOCK.md` ✅ (acquired and cleared)
 - Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - websocket route `/ws` ✅ reachable/auth-enforced (`HTTP 403` on unauthenticated upgrade probe with valid websocket headers)
 - Notes/blockers:
   - Local host Python environment does not include new backend dependencies; runtime validation was executed in Docker instead.
+  - First post-restart external probes to `/api/health` and `/ws` returned transient `502`; retries passed after Traefik/backend convergence.
