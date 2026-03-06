@@ -273,11 +273,18 @@ EOF
 - Validation commands/results:
   - `cd codexchat_front && npm run lint` ✅
   - `cd codexchat_front && npm run build` ✅
-- Commit:
-- Push:
+- Commit: `89ebd71` - feat(frontend): implement safety guardrails across authenticated UX
+- Push: `origin/master` updated successfully
 - Deploy status:
+  - Lock coordination via `LOCK.md` ✅ (acquired as `FRONT`, then reset to unlocked template)
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
 - Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200 after brief transient `502`)
+  - `wss://todo.flounderboard.com/ws` ✅ reachable/auth-enforced (HTTP/1.1 websocket upgrade probe returns HTTP 403 unauthenticated)
 - Notes/blockers:
+  - Initial smoke probes returned transient `502` on `/api/health` and `/ws` immediately after container restart; retries passed once services stabilized.
 
 - Date: 2026-03-06
 - Task completed: docs/TODO/backendTODO.md :: 11) Search and Query Performance (MVP+) + 12) Safety and Warning Surfaces
