@@ -1,10 +1,20 @@
 export type ChatRole = "user" | "assistant" | "system";
 
+export type ChatMessageFile = {
+  id: string;
+  originalName: string;
+  storagePath: string;
+  downloadPath: string;
+  mimeType?: string;
+  sizeBytes?: number;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
   content: string;
   createdAt: string;
+  files?: ChatMessageFile[];
   pending?: boolean;
   deliveryStatus?: "sending" | "failed";
 };

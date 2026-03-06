@@ -12,6 +12,7 @@ import type {
   AssistantDoneEvent,
   ChatErrorEvent,
   ChatMessage,
+  ChatMessageFile,
   ChatRole,
   ConversationBusyEvent,
 } from "@/types/chat";
@@ -31,6 +32,21 @@ type ApiConversationMessage = {
   content?: string;
   created_at?: string;
   createdAt?: string;
+  files?: unknown;
+};
+
+type ApiMessageFile = {
+  id?: string;
+  original_name?: string;
+  originalName?: string;
+  storage_path?: string;
+  storagePath?: string;
+  download_path?: string;
+  downloadPath?: string;
+  mime_type?: string;
+  mimeType?: string;
+  size_bytes?: number;
+  sizeBytes?: number;
 };
 
 type ConversationItem = {
@@ -42,6 +58,27 @@ type ConversationItem = {
 type ConversationDetail = {
   messages: ChatMessage[];
 };
+
+type UploadedFileResponse = {
+  id?: string;
+  original_name?: string;
+  originalName?: string;
+  storage_path?: string;
+  storagePath?: string;
+  download_path?: string;
+  downloadPath?: string;
+  mime_type?: string;
+  mimeType?: string;
+  size_bytes?: number;
+  sizeBytes?: number;
+};
+
+type AttachmentDraft = {
+  id: string;
+  file: File;
+};
+
+const DEFAULT_UPLOAD_LIMIT_MB = 15;
 
 type ChatEvent =
   | AssistantDeltaEvent
@@ -114,6 +151,43 @@ function isChatRole(value: string): value is ChatRole {
   return value === "user" || value === "assistant" || value === "system";
 }
 
+function normalizeMessageFile(item: ApiMessageFile): ChatMessageFile | null {
+  if (!item.id || typeof item.id !== "string") {
+    return null;
+  }
+
+  const originalName = item.original_name ?? item.originalName;
+  const storagePath = item.storage_path ?? item.storagePath;
+  const downloadPath = item.download_path ?? item.downloadPath;
+
+  if (
+    typeof originalName !== "string" ||
+    typeof storagePath !== "string" ||
+    typeof downloadPath !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    originalName,
+    storagePath,
+    downloadPath,
+    mimeType:
+      typeof item.mime_type === "string"
+        ? item.mime_type
+        : typeof item.mimeType === "string"
+          ? item.mimeType
+          : undefined,
+    sizeBytes:
+      typeof item.size_bytes === "number"
+        ? item.size_bytes
+        : typeof item.sizeBytes === "number"
+          ? item.sizeBytes
+          : undefined,
+  };
+}
+
 function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
   if (!item.id || typeof item.id !== "string") {
     return null;
@@ -129,6 +203,11 @@ function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
     role,
     content: typeof item.content === "string" ? item.content : "",
     createdAt: item.created_at ?? item.createdAt ?? new Date().toISOString(),
+    files: Array.isArray(item.files)
+      ? item.files
+          .map((fileItem) => normalizeMessageFile(fileItem as ApiMessageFile))
+          .filter((fileItem): fileItem is ChatMessageFile => Boolean(fileItem))
+      : [],
   };
 }
 
@@ -212,6 +291,28 @@ function formatMessageTimestamp(value: string): string {
   }).format(date);
 }
 
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "Unknown size";
+  }
+
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const kib = bytes / 1024;
+  if (kib < 1024) {
+    return `${kib.toFixed(1)} KB`;
+  }
+
+  const mib = kib / 1024;
+  if (mib < 1024) {
+    return `${mib.toFixed(1)} MB`;
+  }
+
+  return `${(mib / 1024).toFixed(1)} GB`;
+}
+
 function isLikelyNetworkFailure(error: unknown): boolean {
   if (error instanceof TypeError) {
     return true;
@@ -293,6 +394,10 @@ export default function ChatWorkspace() {
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [composerValue, setComposerValue] = useState("");
+  const [attachmentDrafts, setAttachmentDrafts] = useState<AttachmentDraft[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isUploadingAttachments, setUploadingAttachments] = useState(false);
+  const [uploadLimitMb, setUploadLimitMb] = useState(DEFAULT_UPLOAD_LIMIT_MB);
   const [sendErrorByConversationId, setSendErrorByConversationId] = useState<Record<string, string | null>>({});
   const [isCreatingConversation, setCreatingConversation] = useState(false);
 
@@ -337,6 +442,7 @@ export default function ChatWorkspace() {
     ? Boolean(busyByConversationId[selectedConversationId])
     : false;
   const selectedSendError = selectedConversationId ? (sendErrorByConversationId[selectedConversationId] ?? null) : null;
+  const uploadLimitBytes = uploadLimitMb * 1024 * 1024;
 
   const loadConversations = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -415,8 +521,56 @@ export default function ChatWorkspace() {
   }, [loadConversations]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadUploadLimit = async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/settings`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as {
+          settings?: {
+            upload_limit_mb_default?: unknown;
+          };
+        };
+        const uploadLimitValue = payload.settings?.upload_limit_mb_default;
+        if (typeof uploadLimitValue !== "number" || uploadLimitValue < 1) {
+          return;
+        }
+
+        if (isMounted) {
+          setUploadLimitMb(uploadLimitValue);
+        }
+      } catch {
+        // Keep default fallback when settings are unavailable.
+      }
+    };
+
+    void loadUploadLimit();
+    return () => {
+      isMounted = false;
+    };
+  }, [apiBaseUrl]);
+
+  useEffect(() => {
     setSelectedConversationId(selectedFromQuery);
   }, [selectedFromQuery]);
+
+  useEffect(() => {
+    setAttachmentDrafts((previous) => {
+      const valid = previous.filter((draft) => draft.file.size <= uploadLimitBytes);
+      if (valid.length !== previous.length) {
+        setAttachmentError(`One or more files exceeded the ${uploadLimitMb} MB limit and were removed.`);
+      }
+      return valid;
+    });
+  }, [uploadLimitBytes, uploadLimitMb]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -470,7 +624,60 @@ export default function ChatWorkspace() {
     router.push("/chat");
   }, [router]);
 
-  const appendOptimisticUserMessage = useCallback((conversationId: string, content: string): string => {
+  const onPickAttachments = useCallback((pickedFiles: FileList | null) => {
+    if (!pickedFiles || pickedFiles.length === 0) {
+      return;
+    }
+
+    const incoming = Array.from(pickedFiles);
+    const rejectedNames: string[] = [];
+
+    setAttachmentDrafts((previous) => {
+      const next = [...previous];
+      for (const file of incoming) {
+        if (file.size > uploadLimitBytes) {
+          rejectedNames.push(file.name);
+          continue;
+        }
+
+        const duplicate = next.some(
+          (draft) =>
+            draft.file.name === file.name &&
+            draft.file.size === file.size &&
+            draft.file.lastModified === file.lastModified,
+        );
+        if (duplicate) {
+          continue;
+        }
+
+        next.push({
+          id: createClientMessageId("attachment"),
+          file,
+        });
+      }
+      return next;
+    });
+
+    if (rejectedNames.length > 0) {
+      const sample = rejectedNames.slice(0, 2).join(", ");
+      const suffix = rejectedNames.length > 2 ? ` (+${rejectedNames.length - 2} more)` : "";
+      setAttachmentError(`File exceeds ${uploadLimitMb} MB: ${sample}${suffix}`);
+      return;
+    }
+
+    setAttachmentError(null);
+  }, [uploadLimitBytes, uploadLimitMb]);
+
+  const onRemoveAttachment = useCallback((attachmentId: string) => {
+    setAttachmentDrafts((previous) => previous.filter((draft) => draft.id !== attachmentId));
+    setAttachmentError(null);
+  }, []);
+
+  const appendOptimisticUserMessage = useCallback((
+    conversationId: string,
+    content: string,
+    files: ChatMessageFile[],
+  ): string => {
     const optimisticId = createClientMessageId("user");
     setMessagesByConversationId((previous) => ({
       ...previous,
@@ -481,12 +688,51 @@ export default function ChatWorkspace() {
           role: "user",
           content,
           createdAt: new Date().toISOString(),
+          files,
           deliveryStatus: "sending",
         },
       ],
     }));
     return optimisticId;
   }, []);
+
+  const uploadAttachments = useCallback(async (
+    conversationId: string,
+    drafts: AttachmentDraft[],
+  ): Promise<ChatMessageFile[]> => {
+    if (drafts.length === 0) {
+      return [];
+    }
+
+    const formData = new FormData();
+    for (const draft of drafts) {
+      formData.append("files", draft.file);
+    }
+
+    const response = await fetch(`${apiBaseUrl}/conversations/${conversationId}/files`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed with ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { files?: UploadedFileResponse[] };
+    const uploadedRows = Array.isArray(payload.files) ? payload.files : [];
+
+    return uploadedRows
+      .map((item) => normalizeMessageFile({
+        id: item.id,
+        original_name: item.original_name ?? item.originalName,
+        storage_path: item.storage_path ?? item.storagePath,
+        download_path: item.download_path ?? item.downloadPath,
+        mime_type: item.mime_type ?? item.mimeType,
+        size_bytes: item.size_bytes ?? item.sizeBytes,
+      }))
+      .filter((item): item is ChatMessageFile => Boolean(item));
+  }, [apiBaseUrl]);
 
   const markMessageAsFailed = useCallback((conversationId: string, messageId: string) => {
     setMessagesByConversationId((previous) => {
@@ -775,12 +1021,30 @@ export default function ChatWorkspace() {
         ...previous,
         [conversationId]: null,
       }));
+      setAttachmentError(null);
 
-      const optimisticId = appendOptimisticUserMessage(conversationId, trimmedContent);
+      let uploadedFiles: ChatMessageFile[] = [];
+      if (attachmentDrafts.length > 0) {
+        try {
+          setUploadingAttachments(true);
+          uploadedFiles = await uploadAttachments(conversationId, attachmentDrafts);
+        } catch {
+          setSendErrorByConversationId((previous) => ({
+            ...previous,
+            [conversationId]: "Files failed to upload. Remove invalid files and retry.",
+          }));
+          return false;
+        } finally {
+          setUploadingAttachments(false);
+        }
+      }
+
+      const optimisticId = appendOptimisticUserMessage(conversationId, trimmedContent, uploadedFiles);
       const sent = sendJsonMessage({
         type: "send_message",
         conversationId,
         content: trimmedContent,
+        file_ids: uploadedFiles.map((file) => file.id),
       });
 
       if (!sent) {
@@ -793,9 +1057,19 @@ export default function ChatWorkspace() {
       }
 
       markMessageAsSent(conversationId, optimisticId);
+      setAttachmentDrafts([]);
+      setAttachmentError(null);
       return true;
     },
-    [appendOptimisticUserMessage, ensureConversationForSend, markMessageAsFailed, markMessageAsSent, sendJsonMessage],
+    [
+      appendOptimisticUserMessage,
+      attachmentDrafts,
+      ensureConversationForSend,
+      markMessageAsFailed,
+      markMessageAsSent,
+      sendJsonMessage,
+      uploadAttachments,
+    ],
   );
 
   const onComposerSubmit = useCallback(async () => {
@@ -832,6 +1106,7 @@ export default function ChatWorkspace() {
       type: "send_message",
       conversationId,
       content: failedMessage.content.trim(),
+      file_ids: (failedMessage.files ?? []).map((file) => file.id),
     });
 
     if (!sent) {
@@ -854,6 +1129,7 @@ export default function ChatWorkspace() {
     composerValue.trim().length > 0 &&
     !selectedConversationBusy &&
     !isCreatingConversation &&
+    !isUploadingAttachments &&
     connectionState === "connected" &&
     wsResolution.error === null;
 
@@ -984,9 +1260,15 @@ export default function ChatWorkspace() {
               disabled={!canSubmitComposer}
               isBusy={selectedConversationBusy}
               isCreatingConversation={isCreatingConversation}
+              isUploadingAttachments={isUploadingAttachments}
               connectionState={connectionState}
               hasConfigError={Boolean(wsResolution.error)}
               sendError={selectedSendError}
+              selectedAttachments={attachmentDrafts}
+              attachmentError={attachmentError}
+              uploadLimitMb={uploadLimitMb}
+              onPickAttachments={onPickAttachments}
+              onRemoveAttachment={onRemoveAttachment}
             />
           </section>
         </main>
@@ -1289,9 +1571,15 @@ type ComposerPanelProps = {
   disabled: boolean;
   isBusy: boolean;
   isCreatingConversation: boolean;
+  isUploadingAttachments: boolean;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
   hasConfigError: boolean;
   sendError: string | null;
+  selectedAttachments: AttachmentDraft[];
+  attachmentError: string | null;
+  uploadLimitMb: number;
+  onPickAttachments: (files: FileList | null) => void;
+  onRemoveAttachment: (attachmentId: string) => void;
 };
 
 function ComposerPanel({
@@ -1301,9 +1589,15 @@ function ComposerPanel({
   disabled,
   isBusy,
   isCreatingConversation,
+  isUploadingAttachments,
   connectionState,
   hasConfigError,
   sendError,
+  selectedAttachments,
+  attachmentError,
+  uploadLimitMb,
+  onPickAttachments,
+  onRemoveAttachment,
 }: ComposerPanelProps) {
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1322,6 +1616,8 @@ function ComposerPanel({
   let helperText = "Enter to send. Shift+Enter for newline.";
   if (isCreatingConversation) {
     helperText = "Creating conversation…";
+  } else if (isUploadingAttachments) {
+    helperText = "Uploading attachments…";
   } else if (isBusy) {
     helperText = "This conversation is busy.";
   } else if (hasConfigError || connectionState !== "connected") {
@@ -1342,8 +1638,41 @@ function ComposerPanel({
         placeholder="Send a message…"
         className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/15"
       />
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium transition hover:bg-muted">
+          <span>Attach files</span>
+          <input
+            type="file"
+            className="sr-only"
+            multiple
+            onChange={(event) => {
+              onPickAttachments(event.target.files);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        <p className="text-xs text-muted-foreground">Max {uploadLimitMb} MB each</p>
+      </div>
+      {selectedAttachments.length > 0 ? (
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {selectedAttachments.map((draft) => (
+            <li key={draft.id} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs">
+              <span className="max-w-[12rem] truncate">{draft.file.name}</span>
+              <span className="text-muted-foreground">{formatFileSize(draft.file.size)}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${draft.file.name}`}
+                className="rounded-full border border-border px-1.5 leading-none transition hover:bg-muted"
+                onClick={() => onRemoveAttachment(draft.id)}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="mt-2 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">{sendError ?? helperText}</p>
+        <p className="text-xs text-muted-foreground">{sendError ?? attachmentError ?? helperText}</p>
         <button
           type="button"
           className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
@@ -1391,6 +1720,28 @@ function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () =
       <div className="text-sm leading-6">
         <MessageMarkdown content={message.content} />
       </div>
+      {message.files && message.files.length > 0 ? (
+        <div className="mt-3 rounded-md border border-border bg-background/70 p-3">
+          <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-muted-foreground">
+            Attached files
+          </p>
+          <ul className="mt-2 space-y-2">
+            {message.files.map((file) => (
+              <li key={file.id} className="text-xs">
+                <a
+                  href={file.downloadPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-foreground underline underline-offset-2"
+                >
+                  {file.originalName}
+                </a>
+                <p className="mt-0.5 break-all text-muted-foreground">{file.storagePath}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {message.deliveryStatus === "failed" ? (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
           <p className="text-xs text-muted-foreground">Failed to send</p>

@@ -62,13 +62,13 @@
 - [x] Add clear error handling for failed sends. (completed 2026-03-06)
 
 ## 7) File Attachments UX
-- [ ] Add attachment picker button in composer (desktop + mobile).
-- [ ] Show pre-send selected file chips with remove action.
-- [ ] Upload selected files to backend conversation files endpoint.
-- [ ] Include returned file path/reference in message send payload.
-- [ ] Render attached file references/paths in message timeline.
-- [ ] Render downloadable file links for assistant-returned files.
-- [ ] Enforce frontend file size validation (default 15 MB from settings).
+- [x] Add attachment picker button in composer (desktop + mobile). (completed 2026-03-06)
+- [x] Show pre-send selected file chips with remove action. (completed 2026-03-06)
+- [x] Upload selected files to backend conversation files endpoint. (completed 2026-03-06)
+- [x] Include returned file path/reference in message send payload. (completed 2026-03-06)
+- [x] Render attached file references/paths in message timeline. (completed 2026-03-06)
+- [x] Render downloadable file links for assistant-returned files. (completed 2026-03-06)
+- [x] Enforce frontend file size validation (default 15 MB from settings). (completed 2026-03-06)
 
 ## 8) Conversation Search (MVP+ UI)
 - [ ] Add search input in sidebar.
