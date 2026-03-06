@@ -318,6 +318,34 @@ EOF
   1) Should login submit to `POST /api/auth/login` with JSON `{ email, password }`?
   2) Should failed login always show `Invalid email or password` unless backend explicitly signals lockout?
   3) Should lockout responses show backend retry timing when available, otherwise `Too many attempts. Try again later.`?
+
+- Date: 2026-03-06
+- Task completed: docs/TODO/backendTODO.md :: 10) Heartbeat Worker (Separate Service)
+- Questions asked:
+  1) Should heartbeat jobs be visible/editable by all authenticated users (shared model), or admin-only?
+  2) For worker scheduling, should I implement a simple DB polling loop now (no external queue/cron)?
+  3) For markdown file input, should `POST /api/heartbeat-jobs` require an absolute server path that already exists?
+- Assumptions:
+  - Shared model for heartbeat jobs: authenticated users can view/create/edit/delete jobs for the shared workspace/app; admin-only behavior remains for global settings defaults.
+  - Worker uses DB polling loop with env-configured poll interval, row-level claiming/locking, and stale recovery.
+  - Heartbeat job `instruction_file_path` is strict server-side validated: absolute, existing, markdown file, and constrained to allowed base path when configured.
+- Validation commands/results:
+  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `docker compose config` ✅
+  - `cd codexchat_back && python3 -m compileall app` ✅ (post-fix verification)
+- Commit: `13ea3cc` - feat(backend): implement heartbeat job API and worker scheduler loop
+- Commit: `3916216` - fix(deploy): use JSON env format for heartbeat interval presets
+- Push: `origin/master` updated successfully
+- Deploy status:
+  - Lock coordination via `LOCK.md` ✅ (acquired and released; final state reset to unlocked template)
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
+- Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - `wss://todo.flounderboard.com/ws` ✅ reachable/auth-enforced (`HTTP 403` on unauthenticated websocket connect)
+- Notes/blockers:
+  - Initial deploy attempt failed backend/worker startup due env parsing for `HEARTBEAT_INTERVAL_PRESETS` (`SettingsError` from non-JSON tuple env); resolved by switching env format to JSON array and redeploying.
 - Assumptions:
   - Login request body is `{ "email": "...", "password": "..." }` to `POST /api/auth/login`.
   - Backend sets the session cookie (`httpOnly`) on successful login; frontend handles redirect after success.
