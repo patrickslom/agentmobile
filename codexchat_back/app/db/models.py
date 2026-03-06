@@ -16,6 +16,10 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
+        CheckConstraint(
+            "theme_preference IS NULL OR theme_preference IN ('light', 'dark')",
+            name="ck_users_theme_preference",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -36,6 +40,7 @@ class User(Base):
         nullable=False,
         server_default=text("false"),
     )
+    theme_preference: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

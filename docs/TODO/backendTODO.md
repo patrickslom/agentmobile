@@ -74,14 +74,14 @@
 - [x] Ensure file references/paths are returned to frontend for message rendering. (completed 2026-03-06)
 
 ## 9) Settings Domain
-- [ ] Implement `GET /api/settings` and `PATCH /api/settings`.
-- [ ] Store defaults: execution mode, upload limit, heartbeat defaults/cap, theme preference.
-- [ ] Enforce product defaults:
-- [ ] YOLO available to all users.
-- [ ] heartbeat disabled by default.
-- [ ] heartbeat cap default 10, optional unlimited.
-- [ ] upload max default 15 MB.
-- [ ] Include shared-workspace non-privacy warning flag/content.
+- [x] Implement `GET /api/settings` and `PATCH /api/settings`. (completed 2026-03-06)
+- [x] Store defaults: execution mode, upload limit, heartbeat defaults/cap, theme preference. (completed 2026-03-06)
+- [x] Enforce product defaults: (completed 2026-03-06)
+- [x] YOLO available to all users. (completed 2026-03-06)
+- [x] heartbeat disabled by default. (completed 2026-03-06)
+- [x] heartbeat cap default 10, optional unlimited. (completed 2026-03-06)
+- [x] upload max default 15 MB. (completed 2026-03-06)
+- [x] Include shared-workspace non-privacy warning flag/content. (completed 2026-03-06)
 
 ## 10) Heartbeat Worker (Separate Service)
 - [ ] Implement heartbeat job CRUD endpoints in API:

@@ -176,6 +176,26 @@ EOF
 - Smoke check status:
 - Notes/blockers:
 
+- Date: 2026-03-06
+- Task completed: docs/TODO/backendTODO.md :: 9) Settings Domain
+- Questions asked:
+  1) Should `theme preference` be global app setting only, or per-user setting?
+  2) For `PATCH /api/settings`, do you want partial updates (only provided fields) with validation?
+  3) For the shared-workspace warning, should API return static copy from config/spec text, or editable text stored in DB?
+- Assumptions:
+  - Theme preference is stored per-user; global settings remain operational defaults.
+  - `PATCH /api/settings` supports partial updates and validates each provided field.
+  - Shared-workspace non-privacy warning content is static for MVP.
+- Validation commands/results:
+  - `python3 -m compileall codexchat_back/app` ✅
+  - `python3 -m compileall codexchat_back/alembic` ✅
+  - `cd codexchat_back && python3 -m pytest -q` ❌ (`No module named pytest`)
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+
 - Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add app shell layout with responsive viewport and safe-area handling.
 - Questions asked:
