@@ -21,6 +21,21 @@ type ConversationItem = {
   updatedAt: string | null;
 };
 
+const SHOULD_USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "1";
+
+const MOCK_CONVERSATIONS: ConversationItem[] = [
+  {
+    id: "mock-1",
+    title: "Draft deployment checklist",
+    updatedAt: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
+  },
+  {
+    id: "mock-2",
+    title: "Layout polish notes",
+    updatedAt: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
+  },
+];
+
 function extractConversations(payload: unknown): ApiConversation[] {
   if (Array.isArray(payload)) {
     return payload as ApiConversation[];
@@ -79,6 +94,18 @@ function formatUpdatedAt(value: string | null): string {
   }).format(date);
 }
 
+function isLikelyNetworkFailure(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  if (error instanceof Error) {
+    return /network|failed to fetch|load failed|fetch/i.test(error.message);
+  }
+
+  return false;
+}
+
 export default function ChatWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -123,8 +150,13 @@ export default function ChatWorkspace() {
 
         setConversations(normalized);
         setErrorMessage(null);
-      } catch {
-        setErrorMessage("Unable to load conversations right now.");
+      } catch (error) {
+        if (SHOULD_USE_MOCKS && isLikelyNetworkFailure(error)) {
+          setConversations(MOCK_CONVERSATIONS);
+          setErrorMessage(null);
+        } else {
+          setErrorMessage("Unable to load conversations right now.");
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -221,7 +253,7 @@ export default function ChatWorkspace() {
               className="absolute inset-0 bg-black/50"
               onClick={() => setDrawerOpen(false)}
             />
-            <aside className="relative z-10 h-full w-[min(100vw,24rem)] border-r border-border bg-background">
+            <aside className="relative z-10 h-full w-screen border-r border-border bg-background">
               <SidebarContent
                 conversations={conversations}
                 selectedConversationId={selectedConversationId}

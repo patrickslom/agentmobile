@@ -636,3 +636,23 @@ EOF
 - Smoke check status:
 - Notes/blockers:
   - Existing unrelated frontend working tree changes left unstaged per guardrails.
+
+- Date: 2026-03-05
+- Task completed: docs/TODO/frontendTODO.md :: 4) Chat Layout (Desktop + Mobile)
+- Questions asked:
+  1) Should I implement this using the existing `/chat` route structure, or refactor `/chat` layout files first if needed?
+  2) For conversation list data, should I use the live backend endpoint now or scaffold with a fallback mock state when API fields are missing?
+  3) On mobile, do you want the sidebar drawer to auto-close immediately after selecting a conversation?
+- Assumptions:
+  - Use existing `/chat` route and only minimal refactor needed for a clean shell.
+  - Use live backend conversations endpoint; allow dev fallback mock only when API is unreachable and `NEXT_PUBLIC_USE_MOCKS=1`.
+  - Mobile drawer auto-closes on conversation selection and backdrop tap.
+- Validation commands/results:
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+  - User requested an intermediate commit/push of pre-existing local frontend chat shell changes before this run was finalized.

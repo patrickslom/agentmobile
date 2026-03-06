@@ -36,13 +36,13 @@
 - [x] Redirect successful login to `/chat`. (completed 2026-03-05)
 
 ## 4) Chat Layout (Desktop + Mobile)
-- [ ] Build desktop split layout: left sidebar + main pane.
-- [ ] Build mobile top bar with hamburger button.
-- [ ] Implement full-screen sidebar drawer on mobile.
-- [ ] Add `New chat` button in sidebar.
-- [ ] Add conversation list with title + updated timestamp.
-- [ ] Add conversation click-to-resume behavior.
-- [ ] Add loading/empty/error states for conversation list.
+- [x] Build desktop split layout: left sidebar + main pane. (completed 2026-03-05)
+- [x] Build mobile top bar with hamburger button. (completed 2026-03-05)
+- [x] Implement full-screen sidebar drawer on mobile. (completed 2026-03-05)
+- [x] Add `New chat` button in sidebar. (completed 2026-03-05)
+- [x] Add conversation list with title + updated timestamp. (completed 2026-03-05)
+- [x] Add conversation click-to-resume behavior. (completed 2026-03-05)
+- [x] Add loading/empty/error states for conversation list. (completed 2026-03-05)
 
 ## 5) Message Timeline + Streaming
 - [ ] Build message list rendering for `user|assistant|system`.
