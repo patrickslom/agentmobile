@@ -30,6 +30,7 @@ OPENAPI_TAGS = [
     {"name": "chat", "description": "Conversation and message APIs."},
     {"name": "codex", "description": "Codex runtime bridge operations."},
     {"name": "files", "description": "Conversation file upload and download."},
+    {"name": "heartbeat", "description": "Heartbeat job scheduling and run logs."},
     {"name": "settings", "description": "Application and runtime settings."},
     {"name": "admin", "description": "Administrative user management."},
     {"name": "locks", "description": "Conversation lock and busy-state APIs."},

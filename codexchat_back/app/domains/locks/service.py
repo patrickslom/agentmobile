@@ -43,7 +43,7 @@ class ConversationLockService:
         db: Session,
         *,
         conversation_id: UUID,
-        user_id: UUID,
+        user_id: UUID | None,
         owner_token: str,
         metadata: dict[str, object] | None = None,
     ) -> LockAcquireResult:

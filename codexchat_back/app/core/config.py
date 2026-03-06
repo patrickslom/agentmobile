@@ -21,6 +21,18 @@ class Settings(BaseSettings):
     ws_allowed_origins: tuple[str, ...] = Field(default=tuple(), alias="WS_ALLOWED_ORIGINS")
     enable_public_registration: bool = Field(default=False, alias="ENABLE_PUBLIC_REGISTRATION")
     codex_turn_timeout_seconds: int = Field(default=300, alias="CODEX_TURN_TIMEOUT_SECONDS")
+    heartbeat_poll_interval_seconds: int = Field(default=15, alias="HEARTBEAT_POLL_INTERVAL_SECONDS")
+    heartbeat_claim_batch_size: int = Field(default=5, alias="HEARTBEAT_CLAIM_BATCH_SIZE")
+    heartbeat_min_interval_minutes: int = Field(default=5, alias="HEARTBEAT_MIN_INTERVAL_MINUTES")
+    heartbeat_interval_presets: tuple[int, ...] = Field(
+        default=(5, 15, 30, 60),
+        alias="HEARTBEAT_INTERVAL_PRESETS",
+    )
+    heartbeat_run_stale_after_seconds: int = Field(
+        default=900,
+        alias="HEARTBEAT_RUN_STALE_AFTER_SECONDS",
+    )
+    heartbeat_allowed_base_path: str | None = Field(default=None, alias="HEARTBEAT_ALLOWED_BASE_PATH")
     uploads_path: str = Field(default="./uploads", alias="UPLOADS_PATH")
     admin_bootstrap_email: str | None = Field(default=None, alias="ADMIN_BOOTSTRAP_EMAIL")
     admin_bootstrap_password: str | None = Field(default=None, alias="ADMIN_BOOTSTRAP_PASSWORD")
@@ -77,6 +89,59 @@ class Settings(BaseSettings):
         if value < 1:
             raise ValueError("CODEX_TURN_TIMEOUT_SECONDS must be >= 1")
         return value
+
+    @field_validator("heartbeat_poll_interval_seconds")
+    @classmethod
+    def validate_heartbeat_poll_interval_seconds(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("HEARTBEAT_POLL_INTERVAL_SECONDS must be >= 1")
+        return value
+
+    @field_validator("heartbeat_claim_batch_size")
+    @classmethod
+    def validate_heartbeat_claim_batch_size(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("HEARTBEAT_CLAIM_BATCH_SIZE must be >= 1")
+        return value
+
+    @field_validator("heartbeat_min_interval_minutes")
+    @classmethod
+    def validate_heartbeat_min_interval_minutes(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("HEARTBEAT_MIN_INTERVAL_MINUTES must be >= 1")
+        return value
+
+    @field_validator("heartbeat_interval_presets", mode="before")
+    @classmethod
+    def validate_heartbeat_interval_presets(cls, value: tuple[int, ...] | list[int] | str) -> tuple[int, ...]:
+        if isinstance(value, str):
+            parts = [item.strip() for item in value.split(",") if item.strip()]
+            try:
+                parsed = tuple(int(item) for item in parts)
+            except ValueError as exc:
+                raise ValueError("HEARTBEAT_INTERVAL_PRESETS must contain integer minutes") from exc
+            return parsed
+
+        if isinstance(value, (tuple, list)):
+            parsed = tuple(int(item) for item in value)
+            return parsed
+
+        raise ValueError("HEARTBEAT_INTERVAL_PRESETS must be a comma-separated list or int tuple")
+
+    @field_validator("heartbeat_run_stale_after_seconds")
+    @classmethod
+    def validate_heartbeat_run_stale_after_seconds(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("HEARTBEAT_RUN_STALE_AFTER_SECONDS must be >= 1")
+        return value
+
+    @field_validator("heartbeat_allowed_base_path")
+    @classmethod
+    def validate_heartbeat_allowed_base_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
     @field_validator("uploads_path")
     @classmethod

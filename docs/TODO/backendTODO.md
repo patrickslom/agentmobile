@@ -84,16 +84,16 @@
 - [x] Include shared-workspace non-privacy warning flag/content. (completed 2026-03-06)
 
 ## 10) Heartbeat Worker (Separate Service)
-- [ ] Implement heartbeat job CRUD endpoints in API:
-- [ ] `GET /api/heartbeat-jobs`
-- [ ] `POST /api/heartbeat-jobs`
-- [ ] `PATCH /api/heartbeat-jobs/:id`
-- [ ] `DELETE /api/heartbeat-jobs/:id`
-- [ ] Implement worker polling/scheduler loop in `codexchat_worker`.
-- [ ] Enforce interval presets and minimum interval rules.
-- [ ] Enforce defaults: disabled by default, max 10 jobs unless unlimited setting.
-- [ ] For each run: read markdown file path, send as conversation turn, persist output.
-- [ ] Persist run logs in `heartbeat_runs` with status and errors.
+- [x] Implement heartbeat job CRUD endpoints in API: (completed 2026-03-06)
+- [x] `GET /api/heartbeat-jobs` (completed 2026-03-06)
+- [x] `POST /api/heartbeat-jobs` (completed 2026-03-06)
+- [x] `PATCH /api/heartbeat-jobs/:id` (completed 2026-03-06)
+- [x] `DELETE /api/heartbeat-jobs/:id` (completed 2026-03-06)
+- [x] Implement worker polling/scheduler loop in `codexchat_worker`. (completed 2026-03-06)
+- [x] Enforce interval presets and minimum interval rules. (completed 2026-03-06)
+- [x] Enforce defaults: disabled by default, max 10 jobs unless unlimited setting. (completed 2026-03-06)
+- [x] For each run: read markdown file path, send as conversation turn, persist output. (completed 2026-03-06)
+- [x] Persist run logs in `heartbeat_runs` with status and errors. (completed 2026-03-06)
 
 ## 11) Search and Query Performance (MVP+)
 - [ ] Implement conversation search endpoint: `GET /api/conversations/search?q=...`.
