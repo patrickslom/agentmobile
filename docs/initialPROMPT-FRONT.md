@@ -26,7 +26,9 @@ You are working in /root/codexchat.
   complete with date notes.
   9) Commit with a clear message, staging only files you edited for this run unless I explicitly say otherwise.
   10) Push to origin master.
-  11) Rebuild/restart containers.
+  11) Before rebuild/restart, check `LOCK.md`, acquire the
+  lock per docs/builderLOOP.md, then rebuild/restart
+  containers; release/reset `LOCK.md` after deploy.
   12) Run smoke checks (web reachable on active dev host).
   13) Report results: files changed, commit hash, deploy
   status, smoke status.
@@ -47,4 +49,7 @@ You are working in /root/codexchat.
   - If blocked, stop and report exact blocker.
   - If unrelated files are already modified, do not ask what to do; leave them unstaged and commit only files you edited in this run.
   - If push/deploy/smoke fails, do not mark task complete.
+  - Never run container rebuild/restart without first
+  checking `LOCK.md` and following lock coordination from
+  docs/builderLOOP.md.
   - Keep changes tightly scoped to the selected section.
