@@ -55,12 +55,12 @@
 - [x] Add recover/restore migration-safe workflow notes. (completed 2026-03-05)
 
 ## 7) Indexing and Performance
-- [ ] Add index on `conversations.updated_at` for sidebar ordering.
-- [ ] Add index on `messages.conversation_id, created_at` for timeline fetch.
-- [ ] Add index on `files.conversation_id, created_at` for attachment retrieval.
-- [ ] Add index on `sessions.expires_at` for cleanup jobs.
-- [ ] Add index on `conversation_locks.expires_at` for stale lock scanning.
-- [ ] Add text search indexes for MVP+ conversation search (title/content).
+- [x] Add index on `conversations.updated_at` for sidebar ordering. (completed 2026-03-05)
+- [x] Add index on `messages.conversation_id, created_at` for timeline fetch. (completed 2026-03-05)
+- [x] Add index on `files.conversation_id, created_at` for attachment retrieval. (completed 2026-03-05)
+- [x] Add index on `sessions.expires_at` for cleanup jobs. (completed 2026-03-05)
+- [x] Add index on `conversation_locks.expires_at` for stale lock scanning. (completed 2026-03-05)
+- [x] Add text search indexes for MVP+ conversation search (title/content). (completed 2026-03-05)
 
 ## 8) Constraints and Data Integrity
 - [x] Add foreign keys for conversation/message/file relations. (completed 2026-03-05)
@@ -70,27 +70,27 @@
 - [x] Add size/value constraints for configured limits where appropriate. (completed 2026-03-05)
 
 ## 9) Seed and Bootstrap Data
-- [ ] Add migration/seed path for first admin user creation support.
-- [ ] Add default settings seed row with product defaults.
-- [ ] Ensure idempotent seed behavior.
+- [x] Add migration/seed path for first admin user creation support. (completed 2026-03-05)
+- [x] Add default settings seed row with product defaults. (completed 2026-03-05)
+- [x] Ensure idempotent seed behavior. (completed 2026-03-05)
 
 ## 10) Operational Jobs and Maintenance
-- [ ] Add periodic cleanup strategy for expired sessions.
-- [ ] Add periodic cleanup strategy for stale locks.
-- [ ] Add archival maintenance notes for old messages/files.
-- [ ] Add DB backup/restore runbook notes for production.
+- [x] Add periodic cleanup strategy for expired sessions. (completed 2026-03-05)
+- [x] Add periodic cleanup strategy for stale locks. (completed 2026-03-05)
+- [x] Add archival maintenance notes for old messages/files. (completed 2026-03-05)
+- [x] Add DB backup/restore runbook notes for production. (completed 2026-03-05)
 
 ## 11) Alembic Migration Hygiene
-- [ ] Split migrations into logical phases (core/auth/settings/heartbeat/locks/indexes).
-- [ ] Ensure every migration has tested downgrade path where safe.
-- [ ] Add migration naming conventions and review checklist.
-- [ ] Add startup guard to fail fast if DB revision is behind.
+- [x] Split migrations into logical phases (core/auth/settings/heartbeat/locks/indexes). (completed 2026-03-05)
+- [x] Ensure every migration has tested downgrade path where safe. (completed 2026-03-05)
+- [x] Add migration naming conventions and review checklist. (completed 2026-03-05)
+- [x] Add startup guard to fail fast if DB revision is behind. (completed 2026-03-05)
 
 ## 12) Manual Verification Checklist
-- [ ] Verify fresh migration apply on empty DB.
-- [ ] Verify migration upgrade path from prior revisions.
-- [ ] Verify archived records are hidden by default queries.
-- [ ] Verify restore-from-archive flow works for conversation/message/file records.
-- [ ] Verify lock table behavior under concurrent send attempts.
-- [ ] Verify heartbeat tables populate correctly during runs.
-- [ ] Verify search-related indexes exist and are used for target queries.
+- [x] Verify fresh migration apply on empty DB. (completed 2026-03-05)
+- [x] Verify migration upgrade path from prior revisions. (completed 2026-03-05)
+- [x] Verify archived records are hidden by default queries. (completed 2026-03-05)
+- [x] Verify restore-from-archive flow works for conversation/message/file records. (completed 2026-03-05)
+- [x] Verify lock table behavior under concurrent send attempts. (completed 2026-03-05)
+- [x] Verify heartbeat tables populate correctly during runs. (completed 2026-03-05)
+- [x] Verify search-related indexes exist and are used for target queries. (completed 2026-03-05)

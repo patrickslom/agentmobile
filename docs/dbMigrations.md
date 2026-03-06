@@ -36,7 +36,9 @@ alembic history
 
 ## Versioning Conventions
 - One logical concern per migration when possible.
-- Message format: `<domain>: <action>` (example: `core: create users table`).
+- Migration file naming format: `<YYYYMMDD>_<NN>_<domain>_<summary>.py`.
+- Revision message format for new files: `<domain>: <action>` (example: `core: create users table`).
+- Keep a single Alembic head; if parallel branches occur, add an explicit merge revision.
 - Keep downgrade path available when safe.
 - Do not edit applied migration files; add a follow-up revision instead.
 
@@ -45,6 +47,63 @@ alembic history
 - Migration applies cleanly over prior revisions.
 - Downgrade path is present and tested where safe.
 - Added/changed indexes and constraints match TODO scope.
+- Application startup guard verifies DB revision matches Alembic head(s) before serving traffic.
+- Migration branch state (`alembic heads`) is reviewed to avoid accidental multi-head drift.
+
+## Seed and Bootstrap
+- Idempotent seed helper is implemented in `codexchat_back/app/db/bootstrap.py`.
+- Seed scope:
+  - ensure singleton `settings` row (`id=1`) exists
+  - optionally create first admin user from `ADMIN_EMAIL` + (`ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH`)
+- Startup behavior:
+  - API startup runs seed once after DB connectivity and revision checks.
+  - Worker startup validates DB connectivity + revision status and fails fast if behind.
+- Manual seed command:
+
+```bash
+cd codexchat_back
+python scripts/db_seed.py
+```
+
+## Operations and Maintenance
+- Session cleanup strategy:
+  - periodic job executes `python scripts/db_maintenance.py cleanup-sessions`
+  - operation deletes expired session rows idempotently.
+- Stale lock cleanup strategy:
+  - periodic job executes `python scripts/db_maintenance.py cleanup-locks`
+  - operation deletes lock rows where lock TTL/heartbeat has expired.
+- Archival maintenance strategy:
+  - optional periodic archive for old records via `python scripts/db_maintenance.py archive-old --days-old 90`
+  - archives old `messages` and `files`, then archives affected conversations.
+
+## Backup and Restore Runbook
+- Backup (logical, compressed):
+
+```bash
+docker compose exec -T codexchat_db \
+  pg_dump -U "${POSTGRES_USER:-codexchat}" -d "${POSTGRES_DB:-codexchat}" --format=custom \
+  | gzip > backup_$(date +%Y%m%d_%H%M%S).dump.gz
+```
+
+- Restore (full DB replacement from backup):
+
+```bash
+gunzip -c backup_YYYYMMDD_HHMMSS.dump.gz \
+  | docker compose exec -T codexchat_db \
+      pg_restore -U "${POSTGRES_USER:-codexchat}" -d "${POSTGRES_DB:-codexchat}" --clean --if-exists --no-owner --no-privileges
+```
+
+- After restore:
+  - run `docker compose run --rm codexchat_back alembic upgrade head`
+  - run smoke checks for `/api/health`, web route, and `/ws`.
+
+## Manual Verification Command
+Run the checklist verification helper after migrations:
+
+```bash
+cd codexchat_back
+python scripts/db_manual_verify.py
+```
 
 ## Conversation locks + stale recovery
 - Added table: `conversation_locks` (revision `20260305_06`).

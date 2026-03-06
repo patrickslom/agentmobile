@@ -6,13 +6,18 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import api_router
 from app.core.config import get_settings
+from app.core.csrf import CSRFMiddleware
 from app.core.errors import AppError, build_error_envelope
 from app.core.logging import RequestContextLoggingMiddleware, configure_logging, request_id_ctx
+from app.domains.auth.password import ensure_password_backend
 from app.domains.auth.session import authenticate_websocket
+from app.db.bootstrap import seed_defaults
+from app.db.migration_guard import assert_database_at_head
 from app.db.session import engine
 
 settings = get_settings()
@@ -53,10 +58,16 @@ def _http_code_for_status(status_code: int) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    ensure_password_backend()
     # Fail fast when the configured database is unreachable.
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
+        assert_database_at_head(connection)
+    with Session(engine) as db:
+        seed_result = seed_defaults(db)
     logger.info("api_startup_complete")
+    if seed_result["seeded_settings"] or seed_result["seeded_admin"]:
+        logger.info("db_seed_applied", extra={"event_data": seed_result})
     yield
 
 
@@ -66,6 +77,7 @@ app = FastAPI(
     openapi_tags=OPENAPI_TAGS,
 )
 app.add_middleware(RequestContextLoggingMiddleware)
+app.add_middleware(CSRFMiddleware)
 app.include_router(api_router, prefix="/api")
 
 
