@@ -190,11 +190,19 @@ EOF
   - `python3 -m compileall codexchat_back/app` ✅
   - `python3 -m compileall codexchat_back/alembic` ✅
   - `cd codexchat_back && python3 -m pytest -q` ❌ (`No module named pytest`)
-- Commit:
-- Push:
+- Commit: `e94f50e` - feat(backend): implement settings domain endpoints and per-user theme preference
+- Push: `origin/master` updated successfully
 - Deploy status:
+  - Lock coordination via `LOCK.md` ✅ (acquired and released with unlocked template)
+  - `docker compose build` ✅
+  - `docker compose up -d` ✅
+  - `alembic upgrade head` ✅ (applied `20260306_13` after detecting API startup guard failure)
 - Smoke check status:
+  - `https://todo.flounderboard.com/` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
+  - `https://todo.flounderboard.com/ws` ✅ reachable/auth-enforced (HTTP 403 on unauthenticated websocket upgrade with valid key)
 - Notes/blockers:
+  - Initial post-deploy `/api/health` and `/ws` returned `502` because DB revision was behind (`20260306_12` vs expected `20260306_13`); resolved by running Alembic upgrade and restarting services.
 
 - Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add app shell layout with responsive viewport and safe-area handling.
