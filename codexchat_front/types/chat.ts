@@ -6,6 +6,7 @@ export type ChatMessage = {
   content: string;
   createdAt: string;
   pending?: boolean;
+  deliveryStatus?: "sending" | "failed";
 };
 
 export type AssistantDeltaEvent = {

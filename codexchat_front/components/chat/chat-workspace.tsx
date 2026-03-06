@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import ThemeToggle from "@/app/components/theme-toggle";
@@ -162,6 +162,26 @@ function extractConversationDetail(payload: unknown): ConversationDetail {
   };
 }
 
+function extractCreatedConversation(payload: unknown): ConversationItem | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const root = payload as {
+    conversation?: unknown;
+    data?: {
+      conversation?: unknown;
+    };
+  };
+
+  const rawConversation = root.conversation ?? root.data?.conversation;
+  if (!rawConversation || typeof rawConversation !== "object") {
+    return null;
+  }
+
+  return normalizeConversation(rawConversation as ApiConversation);
+}
+
 function formatUpdatedAt(value: string | null): string {
   if (!value) {
     return "No activity";
@@ -243,6 +263,15 @@ function extractConversationId(event: ChatEvent): string | null {
   return null;
 }
 
+function isRetryableSendErrorCode(code: string): boolean {
+  return (
+    code === "THREAD_BUSY" ||
+    code === "CONVERSATION_BUSY" ||
+    code === "VALIDATION_ERROR" ||
+    code === "NOT_FOUND"
+  );
+}
+
 export default function ChatWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -263,6 +292,9 @@ export default function ChatWorkspace() {
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
+  const [composerValue, setComposerValue] = useState("");
+  const [sendErrorByConversationId, setSendErrorByConversationId] = useState<Record<string, string | null>>({});
+  const [isCreatingConversation, setCreatingConversation] = useState(false);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
@@ -304,6 +336,7 @@ export default function ChatWorkspace() {
   const selectedConversationBusy = selectedConversationId
     ? Boolean(busyByConversationId[selectedConversationId])
     : false;
+  const selectedSendError = selectedConversationId ? (sendErrorByConversationId[selectedConversationId] ?? null) : null;
 
   const loadConversations = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -437,6 +470,133 @@ export default function ChatWorkspace() {
     router.push("/chat");
   }, [router]);
 
+  const appendOptimisticUserMessage = useCallback((conversationId: string, content: string): string => {
+    const optimisticId = createClientMessageId("user");
+    setMessagesByConversationId((previous) => ({
+      ...previous,
+      [conversationId]: [
+        ...(previous[conversationId] ?? []),
+        {
+          id: optimisticId,
+          role: "user",
+          content,
+          createdAt: new Date().toISOString(),
+          deliveryStatus: "sending",
+        },
+      ],
+    }));
+    return optimisticId;
+  }, []);
+
+  const markMessageAsFailed = useCallback((conversationId: string, messageId: string) => {
+    setMessagesByConversationId((previous) => {
+      const conversationMessages = previous[conversationId] ?? [];
+      return {
+        ...previous,
+        [conversationId]: conversationMessages.map((message) => {
+          if (message.id !== messageId) {
+            return message;
+          }
+          return {
+            ...message,
+            deliveryStatus: "failed",
+          };
+        }),
+      };
+    });
+  }, []);
+
+  const markMessageAsSent = useCallback((conversationId: string, messageId: string) => {
+    setMessagesByConversationId((previous) => {
+      const conversationMessages = previous[conversationId] ?? [];
+      return {
+        ...previous,
+        [conversationId]: conversationMessages.map((message) => {
+          if (message.id !== messageId) {
+            return message;
+          }
+          const nextMessage = { ...message };
+          delete nextMessage.deliveryStatus;
+          return nextMessage;
+        }),
+      };
+    });
+  }, []);
+
+  const markLatestSendingMessageAsFailed = useCallback((conversationId: string) => {
+    setMessagesByConversationId((previous) => {
+      const conversationMessages = previous[conversationId] ?? [];
+      let failedOne = false;
+      const updated = [...conversationMessages];
+      for (let index = updated.length - 1; index >= 0; index -= 1) {
+        if (updated[index].role === "user" && updated[index].deliveryStatus === "sending") {
+          updated[index] = {
+            ...updated[index],
+            deliveryStatus: "failed",
+          };
+          failedOne = true;
+          break;
+        }
+      }
+
+      if (!failedOne) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [conversationId]: updated,
+      };
+    });
+  }, []);
+
+  const ensureConversationForSend = useCallback(async (): Promise<string | null> => {
+    if (selectedConversationId) {
+      return selectedConversationId;
+    }
+
+    setCreatingConversation(true);
+    try {
+      const response = await fetch(`${apiBaseUrl}/conversations`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with ${response.status}`);
+      }
+
+      const payload = (await response.json()) as unknown;
+      const createdConversation = extractCreatedConversation(payload);
+      if (!createdConversation) {
+        throw new Error("Missing conversation payload");
+      }
+
+      setConversations((previous) => {
+        const withoutDuplicate = previous.filter((item) => item.id !== createdConversation.id);
+        return [createdConversation, ...withoutDuplicate];
+      });
+      setSelectedConversationId(createdConversation.id);
+      setSendErrorByConversationId((previous) => ({
+        ...previous,
+        [createdConversation.id]: null,
+      }));
+      router.push(`/chat?conversationId=${encodeURIComponent(createdConversation.id)}`);
+      return createdConversation.id;
+    } catch {
+      setTimelineError("Unable to create a new conversation right now.");
+      return null;
+    } finally {
+      setCreatingConversation(false);
+    }
+  }, [apiBaseUrl, router, selectedConversationId]);
+
+
   const applyAssistantDone = useCallback((conversationId: string, content: string | null) => {
     setBusyByConversationId((previous) => ({
       ...previous,
@@ -559,7 +719,6 @@ export default function ChatWorkspace() {
             ...previous,
             [conversationId]: true,
           }));
-          return;
         }
 
         if (errorEvent.details?.busy === false) {
@@ -568,9 +727,17 @@ export default function ChatWorkspace() {
             [conversationId]: false,
           }));
         }
+
+        if (isRetryableSendErrorCode(code)) {
+          markLatestSendingMessageAsFailed(conversationId);
+          setSendErrorByConversationId((previous) => ({
+            ...previous,
+            [conversationId]: errorEvent.message ?? "Message failed to send. Retry when ready.",
+          }));
+        }
       }
     },
-    [applyAssistantDone, selectedConversationId],
+    [applyAssistantDone, markLatestSendingMessageAsFailed, selectedConversationId],
   );
 
   const {
@@ -591,6 +758,104 @@ export default function ChatWorkspace() {
       }
     },
   });
+
+  const submitMessage = useCallback(
+    async (rawContent: string): Promise<boolean> => {
+      const trimmedContent = rawContent.trim();
+      if (!trimmedContent) {
+        return false;
+      }
+
+      const conversationId = await ensureConversationForSend();
+      if (!conversationId) {
+        return false;
+      }
+
+      setSendErrorByConversationId((previous) => ({
+        ...previous,
+        [conversationId]: null,
+      }));
+
+      const optimisticId = appendOptimisticUserMessage(conversationId, trimmedContent);
+      const sent = sendJsonMessage({
+        type: "send_message",
+        conversationId,
+        content: trimmedContent,
+      });
+
+      if (!sent) {
+        markMessageAsFailed(conversationId, optimisticId);
+        setSendErrorByConversationId((previous) => ({
+          ...previous,
+          [conversationId]: "Message failed to send. Reconnect and retry.",
+        }));
+        return false;
+      }
+
+      markMessageAsSent(conversationId, optimisticId);
+      return true;
+    },
+    [appendOptimisticUserMessage, ensureConversationForSend, markMessageAsFailed, markMessageAsSent, sendJsonMessage],
+  );
+
+  const onComposerSubmit = useCallback(async () => {
+    const sent = await submitMessage(composerValue);
+    if (sent) {
+      setComposerValue("");
+    }
+  }, [composerValue, submitMessage]);
+
+  const onRetryFailedMessage = useCallback(async (messageId: string) => {
+    const conversationId = selectedConversationId;
+    if (!conversationId) {
+      return;
+    }
+
+    const failedMessage = (messagesByConversationId[conversationId] ?? []).find((message) => message.id === messageId);
+    if (!failedMessage || failedMessage.role !== "user") {
+      return;
+    }
+
+    setMessagesByConversationId((previous) => ({
+      ...previous,
+      [conversationId]: (previous[conversationId] ?? []).map((message) =>
+        message.id === messageId
+          ? {
+              ...message,
+              deliveryStatus: "sending",
+            }
+          : message,
+      ),
+    }));
+
+    const sent = sendJsonMessage({
+      type: "send_message",
+      conversationId,
+      content: failedMessage.content.trim(),
+    });
+
+    if (!sent) {
+      markMessageAsFailed(conversationId, messageId);
+      setSendErrorByConversationId((previous) => ({
+        ...previous,
+        [conversationId]: "Message failed to send. Reconnect and retry.",
+      }));
+      return;
+    }
+
+    markMessageAsSent(conversationId, messageId);
+    setSendErrorByConversationId((previous) => ({
+      ...previous,
+      [conversationId]: null,
+    }));
+  }, [markMessageAsFailed, markMessageAsSent, messagesByConversationId, selectedConversationId, sendJsonMessage]);
+
+  const canSubmitComposer =
+    composerValue.trim().length > 0 &&
+    !selectedConversationBusy &&
+    !isCreatingConversation &&
+    connectionState === "connected" &&
+    wsResolution.error === null;
 
   useEffect(() => {
     if (!selectedConversationId || connectionState !== "connected") {
@@ -698,6 +963,8 @@ export default function ChatWorkspace() {
                   isLoading={timelineLoading}
                   errorMessage={timelineError}
                   messages={selectedTimelineMessages}
+                  selectedConversationId={selectedConversationId}
+                  onRetryFailedMessage={onRetryFailedMessage}
                   onRetry={() => selectedConversationId ? void loadConversationMessages(selectedConversationId) : undefined}
                 />
               </>
@@ -709,6 +976,18 @@ export default function ChatWorkspace() {
                 </p>
               </>
             )}
+
+            <ComposerPanel
+              value={composerValue}
+              setValue={setComposerValue}
+              onSubmit={onComposerSubmit}
+              disabled={!canSubmitComposer}
+              isBusy={selectedConversationBusy}
+              isCreatingConversation={isCreatingConversation}
+              connectionState={connectionState}
+              hasConfigError={Boolean(wsResolution.error)}
+              sendError={selectedSendError}
+            />
           </section>
         </main>
       </div>
@@ -929,10 +1208,19 @@ type MessageTimelineProps = {
   isLoading: boolean;
   errorMessage: string | null;
   messages: ChatMessage[];
+  selectedConversationId: string | null;
+  onRetryFailedMessage: (messageId: string) => Promise<void>;
   onRetry: () => void;
 };
 
-function MessageTimeline({ isLoading, errorMessage, messages, onRetry }: MessageTimelineProps) {
+function MessageTimeline({
+  isLoading,
+  errorMessage,
+  messages,
+  selectedConversationId,
+  onRetryFailedMessage,
+  onRetry,
+}: MessageTimelineProps) {
   if (isLoading) {
     return (
       <div className="mt-5 space-y-3">
@@ -968,7 +1256,17 @@ function MessageTimeline({ isLoading, errorMessage, messages, onRetry }: Message
   return (
     <div className="mt-5 space-y-4">
       {messages.map((message) => (
-        <MessageRow key={message.id} message={message} />
+        <MessageRow
+          key={message.id}
+          message={message}
+          onRetry={
+            selectedConversationId && message.deliveryStatus === "failed"
+              ? () => {
+                  void onRetryFailedMessage(message.id);
+                }
+              : undefined
+          }
+        />
       ))}
     </div>
   );
@@ -980,6 +1278,81 @@ function MessageSkeleton() {
       <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
       <div className="mt-3 h-3 w-full animate-pulse rounded bg-muted" />
       <div className="mt-2 h-3 w-5/6 animate-pulse rounded bg-muted" />
+    </div>
+  );
+}
+
+type ComposerPanelProps = {
+  value: string;
+  setValue: (value: string) => void;
+  onSubmit: () => Promise<void>;
+  disabled: boolean;
+  isBusy: boolean;
+  isCreatingConversation: boolean;
+  connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
+  hasConfigError: boolean;
+  sendError: string | null;
+};
+
+function ComposerPanel({
+  value,
+  setValue,
+  onSubmit,
+  disabled,
+  isBusy,
+  isCreatingConversation,
+  connectionState,
+  hasConfigError,
+  sendError,
+}: ComposerPanelProps) {
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key !== "Enter" || event.shiftKey) {
+        return;
+      }
+
+      event.preventDefault();
+      if (!disabled) {
+        void onSubmit();
+      }
+    },
+    [disabled, onSubmit],
+  );
+
+  let helperText = "Enter to send. Shift+Enter for newline.";
+  if (isCreatingConversation) {
+    helperText = "Creating conversation…";
+  } else if (isBusy) {
+    helperText = "This conversation is busy.";
+  } else if (hasConfigError || connectionState !== "connected") {
+    helperText = "WebSocket is not connected.";
+  }
+
+  return (
+    <div className="mt-5 border-t border-border pt-4">
+      <label htmlFor="chat-composer" className="sr-only">
+        Message
+      </label>
+      <textarea
+        id="chat-composer"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={onKeyDown}
+        rows={3}
+        placeholder="Send a message…"
+        className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/15"
+      />
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">{sendError ?? helperText}</p>
+        <button
+          type="button"
+          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={disabled}
+          onClick={() => void onSubmit()}
+        >
+          Send
+        </button>
+      </div>
     </div>
   );
 }
@@ -996,7 +1369,7 @@ function roleLabel(role: ChatRole): string {
   return "You";
 }
 
-function MessageRow({ message }: { message: ChatMessage }) {
+function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () => void }) {
   const sharedClassName = "rounded-xl border p-4";
 
   const styleClassName =
@@ -1011,13 +1384,25 @@ function MessageRow({ message }: { message: ChatMessage }) {
       <header className="mb-2 flex items-center justify-between gap-3">
         <p className="text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
           {roleLabel(message.role)}
-          {message.pending ? " (streaming)" : ""}
+          {message.pending ? " (streaming)" : message.deliveryStatus === "sending" ? " (sending)" : ""}
         </p>
         <p className="text-xs text-muted-foreground">{formatMessageTimestamp(message.createdAt)}</p>
       </header>
       <div className="text-sm leading-6">
         <MessageMarkdown content={message.content} />
       </div>
+      {message.deliveryStatus === "failed" ? (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2">
+          <p className="text-xs text-muted-foreground">Failed to send</p>
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium transition hover:bg-muted"
+            onClick={onRetry}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
     </article>
   );
 }

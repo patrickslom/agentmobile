@@ -763,3 +763,23 @@ EOF
 - Smoke check status:
 - Notes/blockers:
   - Existing unrelated frontend working tree changes left unstaged per guardrails.
+
+- Date: 2026-03-06
+- Task completed: docs/TODO/frontendTODO.md :: 6) Composer + Send Flow
+- Questions asked:
+  1) Should I keep the existing chat input UI and only add the send-flow behavior changes required by this section?
+  2) For optimistic messages, should failed sends stay in the timeline with a `failed` state and retry hint?
+  3) Should `Enter` send only when there is non-whitespace content (and no active busy/lock state), with `Shift+Enter` always inserting a newline?
+- Assumptions:
+  - Keep existing composer visual design and implement behavior-only changes in this run.
+  - Failed optimistic sends remain in the message timeline with a clear failed state and retry action.
+  - `Enter` sends only for non-whitespace content and only when not busy/locked; `Shift+Enter` always inserts newline.
+  - Input text is trimmed only for validation/sending and is not visually trimmed while typing.
+- Validation commands/results:
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:

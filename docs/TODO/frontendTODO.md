@@ -55,11 +55,11 @@
 - [x] Show per-conversation busy/lock state when active run exists. (completed 2026-03-05)
 
 ## 6) Composer + Send Flow
-- [ ] Build multiline composer (`Enter` send, `Shift+Enter` newline).
-- [ ] Disable send while thread is locked/busy.
-- [ ] Send `send_message` payload with `conversationId` + content.
-- [ ] Show optimistic user message before streamed response.
-- [ ] Add clear error handling for failed sends.
+- [x] Build multiline composer (`Enter` send, `Shift+Enter` newline). (completed 2026-03-06)
+- [x] Disable send while thread is locked/busy. (completed 2026-03-06)
+- [x] Send `send_message` payload with `conversationId` + content. (completed 2026-03-06)
+- [x] Show optimistic user message before streamed response. (completed 2026-03-06)
+- [x] Add clear error handling for failed sends. (completed 2026-03-06)
 
 ## 7) File Attachments UX
 - [ ] Add attachment picker button in composer (desktop + mobile).
