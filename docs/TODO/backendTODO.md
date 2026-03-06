@@ -96,15 +96,15 @@
 - [x] Persist run logs in `heartbeat_runs` with status and errors. (completed 2026-03-06)
 
 ## 11) Search and Query Performance (MVP+)
-- [ ] Implement conversation search endpoint: `GET /api/conversations/search?q=...`.
-- [ ] Add indexed query strategy for title and message text.
-- [ ] Return relevance-ordered results with pagination.
+- [x] Implement conversation search endpoint: `GET /api/conversations/search?q=...`. (completed 2026-03-06)
+- [x] Add indexed query strategy for title and message text. (completed 2026-03-06)
+- [x] Return relevance-ordered results with pagination. (completed 2026-03-06)
 
 ## 12) Safety and Warning Surfaces
-- [ ] Add API-provided warning content for destructive operations.
-- [ ] Add explicit warning payload for YOLO mode usage.
-- [ ] Add non-privacy warning payload for shared VPS mode.
-- [ ] Ensure warning metadata can be rendered in frontend settings and chat.
+- [x] Add API-provided warning content for destructive operations. (completed 2026-03-06)
+- [x] Add explicit warning payload for YOLO mode usage. (completed 2026-03-06)
+- [x] Add non-privacy warning payload for shared VPS mode. (completed 2026-03-06)
+- [x] Ensure warning metadata can be rendered in frontend settings and chat. (completed 2026-03-06)
 
 ## 13) Integration and Manual Verification Checklist
 - [ ] Verify login + lockout behavior end-to-end.

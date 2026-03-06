@@ -9,7 +9,8 @@ from __future__ import annotations
 import uuid
 from typing import TypeVar
 
-from sqlalchemy import Select, func, select, update
+from sqlalchemy import Select, and_, cast, desc, func, or_, select, update
+from sqlalchemy.sql.sqltypes import Float
 from sqlalchemy.orm import Session
 
 from app.db.models import Conversation, File, HeartbeatJob, Message, MessageFile
@@ -153,6 +154,65 @@ def list_heartbeat_jobs_for_conversation(
 def list_archived_conversations(db: Session, *, limit: int = 100) -> list[Conversation]:
     """Admin/archive helper: return archived conversations explicitly."""
     return list_conversations(db, only_archived=True, limit=limit)
+
+
+def search_conversations(
+    db: Session,
+    *,
+    query: str,
+    include_archived: bool = False,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[tuple[Conversation, float]], int]:
+    normalized_query = query.strip()
+    if not normalized_query:
+        return ([], 0)
+
+    ts_query = func.websearch_to_tsquery("simple", normalized_query)
+    title_tsv = func.to_tsvector("simple", func.coalesce(Conversation.title, ""))
+    message_tsv = func.to_tsvector("simple", func.coalesce(Message.content, ""))
+
+    join_filters = [Message.conversation_id == Conversation.id]
+    if not include_archived:
+        join_filters.append(Message.archived_at.is_(None))
+
+    search_filters = [
+        or_(
+            title_tsv.op("@@")(ts_query),
+            message_tsv.op("@@")(ts_query),
+        )
+    ]
+    if not include_archived:
+        search_filters.append(Conversation.archived_at.is_(None))
+
+    title_rank = func.ts_rank_cd(title_tsv, ts_query)
+    message_rank = func.ts_rank_cd(message_tsv, ts_query)
+    relevance_score = func.greatest(
+        cast(func.max(title_rank), Float),
+        cast(func.coalesce(func.max(message_rank), 0.0), Float),
+    ).label("relevance_score")
+
+    offset = (page - 1) * page_size
+    search_stmt = (
+        select(Conversation, relevance_score)
+        .outerjoin(Message, and_(*join_filters))
+        .where(*search_filters)
+        .group_by(Conversation.id)
+        .order_by(desc("relevance_score"), Conversation.updated_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    rows = list(db.execute(search_stmt).all())
+    results = [(conversation, float(score or 0.0)) for conversation, score in rows]
+
+    count_stmt = (
+        select(func.count(func.distinct(Conversation.id)))
+        .select_from(Conversation)
+        .outerjoin(Message, and_(*join_filters))
+        .where(*search_filters)
+    )
+    total = int(db.execute(count_stmt).scalar_one() or 0)
+    return (results, total)
 
 
 def archive_conversation(

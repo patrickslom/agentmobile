@@ -13,10 +13,12 @@ from app.db.archive_queries import (
     list_conversations,
     list_message_files_for_conversation,
     list_messages_for_conversation,
+    search_conversations,
 )
-from app.db.models import Conversation, File, Message, User
+from app.db.models import Conversation, File, Message, Settings, User
 from app.db.session import get_db
 from app.domains.auth.dependencies import get_current_user
+from app.domains.warnings import WarningPayload, build_warning_payloads
 
 router = APIRouter(prefix="/conversations", tags=["chat"])
 
@@ -67,6 +69,15 @@ class ConversationResponse(BaseModel):
     updated_at: datetime
     archived_at: datetime | None
     is_archived: bool
+    relevance_score: float | None = None
+
+
+class SearchPaginationResponse(BaseModel):
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+    has_next_page: bool
 
 
 class ConversationDetailResponse(ConversationResponse):
@@ -92,7 +103,11 @@ def _normalize_title_or_error(title: str) -> str:
     return normalized
 
 
-def _conversation_to_response(conversation: Conversation) -> ConversationResponse:
+def _conversation_to_response(
+    conversation: Conversation,
+    *,
+    relevance_score: float | None = None,
+) -> ConversationResponse:
     return ConversationResponse(
         id=str(conversation.id),
         title=conversation.title,
@@ -101,6 +116,7 @@ def _conversation_to_response(conversation: Conversation) -> ConversationRespons
         updated_at=conversation.updated_at,
         archived_at=conversation.archived_at,
         is_archived=conversation.archived_at is not None,
+        relevance_score=relevance_score,
     )
 
 
@@ -134,17 +150,24 @@ def _file_to_response(file_row: File) -> MessageFileResponse:
     )
 
 
+def _warning_payloads(db: Session) -> list[WarningPayload]:
+    settings_row = db.get(Settings, 1)
+    execution_mode_default = settings_row.execution_mode_default if settings_row else "regular"
+    return build_warning_payloads(execution_mode_default=execution_mode_default)
+
+
 @router.get("")
 def get_conversations(
     include_archived: bool = Query(default=False),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict[str, list[ConversationResponse]]:
+) -> dict[str, object]:
     conversations = list_conversations(db, include_archived=include_archived, limit=200)
     return {
         "conversations": [
             _conversation_to_response(conversation) for conversation in conversations
-        ]
+        ],
+        "warnings": _warning_payloads(db),
     }
 
 
@@ -153,12 +176,59 @@ def create_conversation(
     payload: ConversationCreateRequest,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict[str, ConversationResponse]:
+) -> dict[str, object]:
     conversation = Conversation(title=_normalize_title_or_default(payload.title))
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
-    return {"conversation": _conversation_to_response(conversation)}
+    return {
+        "conversation": _conversation_to_response(conversation),
+        "warnings": _warning_payloads(db),
+    }
+
+
+@router.get("/search")
+def search_conversation_index(
+    q: str = Query(min_length=1, max_length=500),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    include_archived: bool = Query(default=False),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    normalized_query = q.strip()
+    if not normalized_query:
+        raise AppError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="BAD_REQUEST",
+            message="Search query cannot be empty",
+            details={},
+        )
+
+    search_results, total = search_conversations(
+        db,
+        query=normalized_query,
+        include_archived=include_archived,
+        page=page,
+        page_size=page_size,
+    )
+    total_pages = (total + page_size - 1) // page_size if total else 0
+    pagination = SearchPaginationResponse(
+        page=page,
+        page_size=page_size,
+        total=total,
+        total_pages=total_pages,
+        has_next_page=page < total_pages,
+    )
+
+    return {
+        "conversations": [
+            _conversation_to_response(conversation, relevance_score=relevance_score)
+            for conversation, relevance_score in search_results
+        ],
+        "pagination": pagination,
+        "warnings": _warning_payloads(db),
+    }
 
 
 @router.get("/{conversation_id}")
@@ -167,7 +237,7 @@ def get_conversation_detail(
     include_archived: bool = Query(default=False),
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict[str, ConversationDetailResponse]:
+) -> dict[str, object]:
     conversation = get_conversation(
         db,
         conversation_id,
@@ -199,7 +269,10 @@ def get_conversation_detail(
             for message in messages
         ],
     )
-    return {"conversation": detail}
+    return {
+        "conversation": detail,
+        "warnings": _warning_payloads(db),
+    }
 
 
 @router.post("/{conversation_id}/title")
@@ -208,7 +281,7 @@ def rename_conversation(
     payload: ConversationRenameRequest,
     _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> dict[str, ConversationResponse]:
+) -> dict[str, object]:
     conversation = get_conversation(db, conversation_id, include_archived=False)
     if conversation is None:
         raise AppError(
@@ -221,4 +294,7 @@ def rename_conversation(
     conversation.title = _normalize_title_or_error(payload.title)
     db.commit()
     db.refresh(conversation)
-    return {"conversation": _conversation_to_response(conversation)}
+    return {
+        "conversation": _conversation_to_response(conversation),
+        "warnings": _warning_payloads(db),
+    }

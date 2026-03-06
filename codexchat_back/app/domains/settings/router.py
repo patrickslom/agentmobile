@@ -10,15 +10,12 @@ from app.core.errors import AppError
 from app.db.models import Settings, User
 from app.db.session import get_db
 from app.domains.auth.dependencies import get_current_user
+from app.domains.warnings import WarningPayload, build_warning_payloads
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 _EXECUTION_MODE_OPTIONS: tuple[str, ...] = ("regular", "yolo")
 _THEME_OPTIONS: tuple[str, ...] = ("light", "dark")
-_SHARED_WORKSPACE_WARNING = (
-    "Shared VPS mode is not private. Other users can access shared conversations, files, and workspace "
-    "data on this deployment."
-)
 
 
 class SharedWorkspaceWarningResponse(BaseModel):
@@ -36,7 +33,10 @@ class SettingsResponse(BaseModel):
     theme_preference: str
     theme_preference_source: Literal["user", "default"]
     theme_options: list[str]
+    destructive_operations_warning: WarningPayload
+    yolo_mode_warning: WarningPayload
     shared_workspace_warning: SharedWorkspaceWarningResponse
+    warnings: list[WarningPayload]
 
 
 class SettingsPatchRequest(BaseModel):
@@ -62,6 +62,10 @@ def _ensure_settings_row(db: Session) -> Settings:
 def _to_settings_response(*, settings_row: Settings, current_user: User) -> SettingsResponse:
     theme_source: Literal["user", "default"] = "user" if current_user.theme_preference else "default"
     theme_value = current_user.theme_preference or settings_row.theme_default
+    warnings = build_warning_payloads(execution_mode_default=settings_row.execution_mode_default)
+    warning_by_id = {warning.id: warning for warning in warnings}
+    shared_workspace_warning = warning_by_id["shared_vps_non_private"]
+
     return SettingsResponse(
         execution_mode_default=settings_row.execution_mode_default,
         execution_mode_options=list(_EXECUTION_MODE_OPTIONS),
@@ -72,10 +76,13 @@ def _to_settings_response(*, settings_row: Settings, current_user: User) -> Sett
         theme_preference=theme_value,
         theme_preference_source=theme_source,
         theme_options=list(_THEME_OPTIONS),
+        destructive_operations_warning=warning_by_id["destructive_operations"],
+        yolo_mode_warning=warning_by_id["yolo_mode"],
         shared_workspace_warning=SharedWorkspaceWarningResponse(
             enabled=True,
-            content=_SHARED_WORKSPACE_WARNING,
+            content=shared_workspace_warning.content,
         ),
+        warnings=warnings,
     )
 
 
