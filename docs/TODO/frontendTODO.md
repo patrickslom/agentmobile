@@ -96,12 +96,12 @@
 - [x] Add success/error toasts for admin actions. (completed 2026-03-06)
 
 ## 11) Heartbeat Jobs UI (MVP+)
-- [ ] Add heartbeat jobs list screen.
-- [ ] Add create job form: conversation, markdown file path, interval(s), enabled.
-- [ ] Add interval presets: `5/10/15/30/60`.
-- [ ] Add edit job flow.
-- [ ] Add delete job flow.
-- [ ] Add run history view (status + timestamps + errors).
+- [x] Add heartbeat jobs list screen. (completed 2026-03-06)
+- [x] Add create job form: conversation, markdown file path, interval(s), enabled. (completed 2026-03-06)
+- [x] Add interval presets: `5/10/15/30/60`. (completed 2026-03-06)
+- [x] Add edit job flow. (completed 2026-03-06)
+- [x] Add delete job flow. (completed 2026-03-06)
+- [x] Add run history view (status + timestamps + errors). (completed 2026-03-06)
 
 ## 12) Safety + UX Guardrails
 - [ ] Show global warning banner about destructive VPS actions.

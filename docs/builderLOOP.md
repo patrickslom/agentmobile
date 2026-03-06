@@ -951,3 +951,24 @@ EOF
 - Smoke check status:
 - Notes/blockers:
   - `timeout 180s npx eslint components/chat/chat-workspace.tsx` hit timeout; full lint then passed with larger timeout.
+
+- Date: 2026-03-06
+- Task completed: docs/TODO/frontendTODO.md :: 11) Heartbeat Jobs UI (MVP+)
+- Questions asked:
+  1) Should the jobs list live on `/settings` as a new Heartbeat tab/section, or as a dedicated route (for example `/settings/heartbeats`)?
+  2) For `conversation` in the create/edit form, do you want a searchable dropdown of existing conversations or manual conversation ID input?
+  3) For run history, should we show only the latest run per job in the list, or a per-job expandable table with multiple recent runs?
+- Assumptions:
+  - Heartbeat jobs UI is implemented as a dedicated authenticated route at `/settings/heartbeats` and linked from `/settings`.
+  - Conversation selection uses a searchable dropdown and does not expose manual conversation ID entry in normal UI.
+  - Main list stays compact and shows latest run status/time, while a lightweight `View runs` modal provides status/timestamps/errors from API-provided recent runs.
+- Validation commands/results:
+  - `cd codexchat_front && timeout 300s npm run lint` ✅
+  - `cd codexchat_front && timeout 240s npx tsc --noEmit` ✅
+  - `cd codexchat_front && timeout 420s npm run build` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+  - None.

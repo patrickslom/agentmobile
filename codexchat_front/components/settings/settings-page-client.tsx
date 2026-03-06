@@ -342,14 +342,22 @@ export default function SettingsPageClient({ isAdmin }: SettingsPageClientProps)
                 Configure appearance, execution defaults, upload limits, and safety warnings.
               </p>
             </div>
-            {isAdmin ? (
+            <div className="flex flex-wrap items-center gap-2">
               <Link
-                href="/settings/admin"
+                href="/settings/heartbeats"
                 className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-foreground"
               >
-                Open admin settings
+                Open heartbeat jobs
               </Link>
-            ) : null}
+              {isAdmin ? (
+                <Link
+                  href="/settings/admin"
+                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-foreground"
+                >
+                  Open admin settings
+                </Link>
+              ) : null}
+            </div>
           </div>
         </header>
 
