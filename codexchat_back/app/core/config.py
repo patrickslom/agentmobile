@@ -33,6 +33,7 @@ class Settings(BaseSettings):
         alias="HEARTBEAT_RUN_STALE_AFTER_SECONDS",
     )
     heartbeat_allowed_base_path: str | None = Field(default=None, alias="HEARTBEAT_ALLOWED_BASE_PATH")
+    codex_workspace_path: str = Field(default="/workspace", alias="CODEX_WORKSPACE_PATH")
     uploads_path: str = Field(default="./uploads", alias="UPLOADS_PATH")
     admin_bootstrap_email: str | None = Field(default=None, alias="ADMIN_BOOTSTRAP_EMAIL")
     admin_bootstrap_password: str | None = Field(default=None, alias="ADMIN_BOOTSTRAP_PASSWORD")
@@ -149,6 +150,14 @@ class Settings(BaseSettings):
         normalized = value.strip()
         if not normalized:
             raise ValueError("UPLOADS_PATH cannot be empty")
+        return normalized
+
+    @field_validator("codex_workspace_path")
+    @classmethod
+    def validate_codex_workspace_path(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("CODEX_WORKSPACE_PATH cannot be empty")
         return normalized
 
     @field_validator("allowed_hosts", mode="before")

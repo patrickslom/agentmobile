@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
-from app.db.models import Conversation, HeartbeatJob, HeartbeatRun, Message
+from app.db.models import Conversation, HeartbeatJob, HeartbeatRun, Message, Settings
 from app.db.session import SessionLocal
 from app.domains.codex.runtime import (
     RuntimeExecutionError,
@@ -33,6 +33,7 @@ async def run_claimed_heartbeat_run(claimed: ClaimedHeartbeatRun) -> None:
     assistant_content = ""
     thread_id: str | None = None
     turn_id: str | None = None
+    sandbox_mode = "workspace-write"
     try:
         with SessionLocal() as db:
             row = db.execute(
@@ -88,6 +89,9 @@ async def run_claimed_heartbeat_run(claimed: ClaimedHeartbeatRun) -> None:
                 )
                 return
             thread_id = conversation.codex_thread_id
+            settings_row = db.get(Settings, 1)
+            execution_mode_default = settings_row.execution_mode_default if settings_row is not None else "regular"
+            sandbox_mode = codex_process_runner.sandbox_mode_for_execution_mode(execution_mode_default)
             user_message = Message(
                 conversation_id=conversation.id,
                 role="user",
@@ -105,6 +109,7 @@ async def run_claimed_heartbeat_run(claimed: ClaimedHeartbeatRun) -> None:
         turn_result = await codex_process_runner.run_turn(
             prompt=prompt,
             existing_thread_id=thread_id,
+            sandbox_mode=sandbox_mode,
             conversation_id=claimed.conversation_id,
             user_id=SYSTEM_USER_ID,
             request_id=str(claimed.run_id),

@@ -23,12 +23,32 @@ export async function hasSessionCookie(): Promise<boolean> {
 function getConfiguredApiBaseUrl(): string | null {
   const explicitApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
   if (explicitApiBaseUrl) {
-    return explicitApiBaseUrl.replace(/\/$/, "");
+    try {
+      const parsed = new URL(explicitApiBaseUrl);
+      if (
+        (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+        Boolean(parsed.host)
+      ) {
+        return explicitApiBaseUrl.replace(/\/$/, "");
+      }
+    } catch {
+      // Ignore invalid explicit API URL and fall back to inferred host URL.
+    }
   }
 
   const appOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN?.trim();
   if (appOrigin) {
-    return `${appOrigin.replace(/\/$/, "")}/api`;
+    try {
+      const parsed = new URL(appOrigin);
+      if (
+        (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+        Boolean(parsed.host)
+      ) {
+        return `${appOrigin.replace(/\/$/, "")}/api`;
+      }
+    } catch {
+      // Ignore invalid app origin and fall back to inferred host URL.
+    }
   }
 
   return null;

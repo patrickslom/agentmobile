@@ -42,6 +42,7 @@ class CodexProcessRunner:
     def __init__(self) -> None:
         settings = get_settings()
         self._turn_timeout_seconds = settings.codex_turn_timeout_seconds
+        self._workspace_path = Path(settings.codex_workspace_path).expanduser()
 
     @property
     def turn_timeout_seconds(self) -> int:
@@ -52,11 +53,13 @@ class CodexProcessRunner:
         *,
         prompt: str,
         existing_thread_id: str | None,
+        sandbox_mode: str,
         conversation_id: UUID,
         user_id: UUID,
         request_id: str,
         on_delta: Callable[[str], Any],
     ) -> TurnResult:
+        sandbox_mode_normalized = self._normalize_sandbox_mode(sandbox_mode)
         state = await self._start_process()
         assistant_content = ""
         task_complete_last_message: str | None = None
@@ -64,7 +67,11 @@ class CodexProcessRunner:
 
         try:
             await self._initialize(state)
-            thread_id = await self._ensure_thread(state, existing_thread_id=existing_thread_id)
+            thread_id = await self._ensure_thread(
+                state,
+                existing_thread_id=existing_thread_id,
+                sandbox_mode=sandbox_mode_normalized,
+            )
 
             turn_result = await self._send_request(
                 state,
@@ -72,6 +79,7 @@ class CodexProcessRunner:
                 params={
                     "threadId": thread_id,
                     "approvalPolicy": "never",
+                    "sandboxPolicy": self._sandbox_policy_for_mode(sandbox_mode_normalized),
                     "input": [{"type": "text", "text": prompt}],
                 },
             )
@@ -143,6 +151,11 @@ class CodexProcessRunner:
             await self._terminate_process(state)
 
     async def _start_process(self) -> _RuntimeState:
+        cwd_path = self._workspace_path
+        if not cwd_path.exists() or not cwd_path.is_dir():
+            raise RuntimeUnavailableError(
+                f"Codex workspace path is missing or not a directory: {cwd_path}"
+            )
         try:
             process = await asyncio.create_subprocess_exec(
                 "codex",
@@ -152,7 +165,7 @@ class CodexProcessRunner:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=str(Path.cwd()),
+                cwd=str(cwd_path),
             )
         except FileNotFoundError as exc:
             raise RuntimeUnavailableError("Codex CLI is not installed in the backend runtime") from exc
@@ -178,7 +191,13 @@ class CodexProcessRunner:
         )
         await self._send_notification(state, method="initialized", params={})
 
-    async def _ensure_thread(self, state: _RuntimeState, *, existing_thread_id: str | None) -> str:
+    async def _ensure_thread(
+        self,
+        state: _RuntimeState,
+        *,
+        existing_thread_id: str | None,
+        sandbox_mode: str,
+    ) -> str:
         if existing_thread_id:
             try:
                 result = await self._send_request(
@@ -187,6 +206,7 @@ class CodexProcessRunner:
                     params={
                         "threadId": existing_thread_id,
                         "approvalPolicy": "never",
+                        "sandbox": sandbox_mode,
                     },
                 )
                 resumed_thread_id = self._extract_thread_id(result)
@@ -203,6 +223,7 @@ class CodexProcessRunner:
             method="thread/start",
             params={
                 "approvalPolicy": "never",
+                "sandbox": sandbox_mode,
             },
         )
         started_thread_id = self._extract_thread_id(result)
@@ -317,6 +338,27 @@ class CodexProcessRunner:
         if isinstance(turn_id, str) and turn_id:
             return turn_id
         return None
+
+    @staticmethod
+    def _normalize_sandbox_mode(sandbox_mode: str) -> str:
+        normalized = sandbox_mode.strip().lower()
+        if normalized not in {"read-only", "workspace-write", "danger-full-access"}:
+            raise RuntimeExecutionError(f"Unsupported sandbox mode: {sandbox_mode}")
+        return normalized
+
+    @staticmethod
+    def _sandbox_policy_for_mode(sandbox_mode: str) -> dict[str, object]:
+        if sandbox_mode == "danger-full-access":
+            return {"type": "dangerFullAccess"}
+        if sandbox_mode == "workspace-write":
+            return {"type": "workspaceWrite"}
+        return {"type": "readOnly"}
+
+    @staticmethod
+    def sandbox_mode_for_execution_mode(execution_mode: str | None) -> str:
+        if (execution_mode or "").strip().lower() == "yolo":
+            return "danger-full-access"
+        return "workspace-write"
 
     @staticmethod
     def _extract_turn_id_from_notification(params: dict[str, Any]) -> str | None:

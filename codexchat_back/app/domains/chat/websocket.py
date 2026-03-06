@@ -16,7 +16,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.archive_queries import get_conversation
-from app.db.models import Message, User
+from app.db.models import Message, Settings, User
 from app.db.session import SessionLocal
 from app.domains.codex.runtime import (
     RuntimeExecutionError,
@@ -268,6 +268,7 @@ class ChatWebSocketService:
             )
         )
         try:
+            sandbox_mode = "workspace-write"
             with SessionLocal() as db:
                 conversation = get_conversation(db, conversation_id, include_archived=False)
                 if conversation is None:
@@ -279,6 +280,11 @@ class ChatWebSocketService:
                     return
 
                 thread_id = conversation.codex_thread_id
+                settings_row = db.get(Settings, 1)
+                execution_mode_default = (
+                    settings_row.execution_mode_default if settings_row is not None else "regular"
+                )
+                sandbox_mode = codex_process_runner.sandbox_mode_for_execution_mode(execution_mode_default)
                 user_message = Message(
                     conversation_id=conversation_id,
                     role="user",
@@ -332,6 +338,7 @@ class ChatWebSocketService:
             turn_result = await codex_process_runner.run_turn(
                 prompt=prompt,
                 existing_thread_id=thread_id,
+                sandbox_mode=sandbox_mode,
                 conversation_id=conversation_id,
                 user_id=user_id,
                 request_id=request_id,

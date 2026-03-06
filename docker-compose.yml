@@ -44,6 +44,7 @@ services:
       HEARTBEAT_INTERVAL_PRESETS: ${HEARTBEAT_INTERVAL_PRESETS:-[5,15,30,60]}
       HEARTBEAT_RUN_STALE_AFTER_SECONDS: ${HEARTBEAT_RUN_STALE_AFTER_SECONDS:-900}
       HEARTBEAT_ALLOWED_BASE_PATH: ${HEARTBEAT_ALLOWED_BASE_PATH:-}
+      CODEX_WORKSPACE_PATH: ${CODEX_WORKSPACE_PATH:-/workspace}
       UPLOADS_PATH: ${UPLOADS_PATH:-/app/uploads}
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
@@ -57,6 +58,7 @@ services:
       - codexchat_internal
     volumes:
       - codexchat_uploads_data:/app/uploads
+      - ${WORKSPACE_PATH:-./workspace}:${CODEX_WORKSPACE_PATH:-/workspace}
       - ${CODEX_HOST_NODE_PATH:-/usr/bin/node}:${CODEX_CONTAINER_NODE_PATH:-/usr/local/bin/node}:ro
       - ${CODEX_HOST_NODE_MODULES_PATH:-/usr/lib/node_modules}:${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}:ro
       - ${CODEX_HOST_AUTH_PATH:-/root/.codex}:${CODEX_CONTAINER_AUTH_PATH:-/root/.codex}:ro
@@ -98,6 +100,7 @@ services:
       HEARTBEAT_INTERVAL_PRESETS: ${HEARTBEAT_INTERVAL_PRESETS:-[5,15,30,60]}
       HEARTBEAT_RUN_STALE_AFTER_SECONDS: ${HEARTBEAT_RUN_STALE_AFTER_SECONDS:-900}
       HEARTBEAT_ALLOWED_BASE_PATH: ${HEARTBEAT_ALLOWED_BASE_PATH:-}
+      CODEX_WORKSPACE_PATH: ${CODEX_WORKSPACE_PATH:-/workspace}
       UPLOADS_PATH: ${UPLOADS_PATH:-/app/uploads}
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
       ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
@@ -110,6 +113,7 @@ services:
       - codexchat_internal
     volumes:
       - codexchat_uploads_data:/app/uploads
+      - ${WORKSPACE_PATH:-./workspace}:${CODEX_WORKSPACE_PATH:-/workspace}
       - ${CODEX_HOST_NODE_PATH:-/usr/bin/node}:${CODEX_CONTAINER_NODE_PATH:-/usr/local/bin/node}:ro
       - ${CODEX_HOST_NODE_MODULES_PATH:-/usr/lib/node_modules}:${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}:ro
       - ${CODEX_HOST_AUTH_PATH:-/root/.codex}:${CODEX_CONTAINER_AUTH_PATH:-/root/.codex}:ro
