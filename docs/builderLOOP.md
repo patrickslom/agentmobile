@@ -260,6 +260,26 @@ EOF
   2) Scaffold `codexchat_front/` with Next.js App Router + Tailwind?
 
 - Date: 2026-03-06
+- Task completed: docs/TODO/frontendTODO.md :: 9) Settings Page + 10) Admin Settings Page (user-approved same-run override)
+- Questions asked:
+  1) Do you want me to override the one-section-per-run rule and implement both `9) Settings Page` and `10) Admin Settings Page` in this single run?
+  2) For admin actions on `/settings/admin`, should I wire to existing backend endpoints now and show “Not available” only if an endpoint is missing, or use temporary mock UI first?
+  3) For notifications, do you prefer inline status banners only, or inline banners plus toast popups?
+- Assumptions:
+  - User approved implementing sections 9 and 10 in a single run.
+  - Admin UI is wired to live backend endpoints; missing endpoints are surfaced immediately.
+  - Notifications use top-floating toast popups with padding and rounded corners.
+  - Backend gap identified: `POST /api/admin/users/:id/reset-password` not implemented; reset flow includes explicit fallback notice.
+- Validation commands/results:
+  - `cd codexchat_front && npm run lint` ✅
+  - `cd codexchat_front && npm run build` ✅
+- Commit:
+- Push:
+- Deploy status:
+- Smoke check status:
+- Notes/blockers:
+
+- Date: 2026-03-06
 - Task completed: docs/TODO/backendTODO.md :: 11) Search and Query Performance (MVP+) + 12) Safety and Warning Surfaces
 - Questions asked:
   1) For `GET /api/conversations/search`, should default scope exclude archived content unless `include_archived=true`?

@@ -77,23 +77,23 @@
 - [x] Preserve selected conversation state during search clear/reset. (completed 2026-03-06)
 
 ## 9) Settings Page
-- [ ] Build settings sections: `Appearance`, `Execution`, `Uploads`, `Heartbeats`, `Safety`.
-- [ ] Load current user settings from backend.
-- [ ] Save settings via patch endpoint.
-- [ ] Add execution mode selector (`regular` / `yolo`) with warning modal.
-- [ ] Add heartbeat defaults UI (disabled by default, cap controls).
-- [ ] Add heartbeat cap control (`10` default, `unlimited` option).
-- [ ] Add upload size limit control (`15 MB` default).
-- [ ] Add shared-workspace non-privacy warning panel.
+- [x] Build settings sections: `Appearance`, `Execution`, `Uploads`, `Heartbeats`, `Safety`. (completed 2026-03-06)
+- [x] Load current user settings from backend. (completed 2026-03-06)
+- [x] Save settings via patch endpoint. (completed 2026-03-06)
+- [x] Add execution mode selector (`regular` / `yolo`) with warning modal. (completed 2026-03-06)
+- [x] Add heartbeat defaults UI (disabled by default, cap controls). (completed 2026-03-06)
+- [x] Add heartbeat cap control (`10` default, `unlimited` option). (completed 2026-03-06)
+- [x] Add upload size limit control (`15 MB` default). (completed 2026-03-06)
+- [x] Add shared-workspace non-privacy warning panel. (completed 2026-03-06)
 
 ## 10) Admin Settings Page
-- [ ] Restrict `/settings/admin` visibility to admin users.
-- [ ] Add user table (email, role, status, created date).
-- [ ] Add create-user form (email, temporary password).
-- [ ] Add force-password-reset toggle for new users (default on).
-- [ ] Add disable/enable user actions.
-- [ ] Add reset-password action flow.
-- [ ] Add success/error toasts for admin actions.
+- [x] Restrict `/settings/admin` visibility to admin users. (completed 2026-03-06)
+- [x] Add user table (email, role, status, created date). (completed 2026-03-06)
+- [x] Add create-user form (email, temporary password). (completed 2026-03-06)
+- [x] Add force-password-reset toggle for new users (default on). (completed 2026-03-06)
+- [x] Add disable/enable user actions. (completed 2026-03-06)
+- [x] Add reset-password action flow. (completed 2026-03-06; includes explicit missing-endpoint fallback notice for `POST /api/admin/users/:id/reset-password`)
+- [x] Add success/error toasts for admin actions. (completed 2026-03-06)
 
 ## 11) Heartbeat Jobs UI (MVP+)
 - [ ] Add heartbeat jobs list screen.
