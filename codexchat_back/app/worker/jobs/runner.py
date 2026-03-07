@@ -14,6 +14,7 @@ from app.db.models import Conversation, HeartbeatJob, HeartbeatRun, Message, Set
 from app.db.session import SessionLocal
 from app.domains.codex.runtime import (
     RuntimeExecutionError,
+    RuntimeThreadResumeError,
     RuntimeTimeoutError,
     RuntimeUnavailableError,
     codex_process_runner,
@@ -128,7 +129,16 @@ async def run_claimed_heartbeat_run(claimed: ClaimedHeartbeatRun) -> None:
                     error_text="Conversation not found",
                 )
                 return
-            if conversation.codex_thread_id != thread_id:
+            if conversation.codex_thread_id and conversation.codex_thread_id != thread_id:
+                heartbeat_service.mark_run_failed(
+                    db,
+                    run_id=claimed.run_id,
+                    error_text=(
+                        "Conversation continuity check failed; runtime returned a different thread id"
+                    ),
+                )
+                return
+            if conversation.codex_thread_id is None:
                 conversation.codex_thread_id = thread_id
             assistant_message = Message(
                 conversation_id=conversation.id,
@@ -148,7 +158,13 @@ async def run_claimed_heartbeat_run(claimed: ClaimedHeartbeatRun) -> None:
             db.add(assistant_message)
             db.commit()
             heartbeat_service.mark_run_succeeded(db, run_id=claimed.run_id)
-    except (OSError, RuntimeTimeoutError, RuntimeUnavailableError, RuntimeExecutionError) as exc:
+    except (
+        OSError,
+        RuntimeTimeoutError,
+        RuntimeUnavailableError,
+        RuntimeExecutionError,
+        RuntimeThreadResumeError,
+    ) as exc:
         with SessionLocal() as db:
             heartbeat_service.mark_run_failed(db, run_id=claimed.run_id, error_text=str(exc))
             if assistant_content.strip():

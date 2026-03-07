@@ -21,6 +21,10 @@ class RuntimeExecutionError(Exception):
     pass
 
 
+class RuntimeThreadResumeError(RuntimeExecutionError):
+    """Raised when a persisted conversation thread cannot be resumed safely."""
+
+
 class RuntimeTimeoutError(Exception):
     pass
 
@@ -209,14 +213,21 @@ class CodexProcessRunner:
                         "sandbox": sandbox_mode,
                     },
                 )
-                resumed_thread_id = self._extract_thread_id(result)
-                if resumed_thread_id:
-                    return resumed_thread_id
-            except RuntimeExecutionError:
-                logger.warning(
-                    "codex_thread_resume_failed_starting_new_thread",
-                    extra={"event_data": {"thread_id": existing_thread_id}},
+            except RuntimeExecutionError as exc:
+                raise RuntimeThreadResumeError(
+                    "Codex runtime could not resume the existing conversation thread"
+                ) from exc
+
+            resumed_thread_id = self._extract_thread_id(result)
+            if not resumed_thread_id:
+                raise RuntimeThreadResumeError(
+                    "Codex runtime resume response did not include a thread id"
                 )
+            if resumed_thread_id != existing_thread_id:
+                raise RuntimeThreadResumeError(
+                    "Codex runtime resumed a different thread id than the persisted conversation thread"
+                )
+            return resumed_thread_id
 
         result = await self._send_request(
             state,

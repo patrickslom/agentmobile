@@ -20,6 +20,7 @@ from app.db.models import Message, Settings, User
 from app.db.session import SessionLocal
 from app.domains.codex.runtime import (
     RuntimeExecutionError,
+    RuntimeThreadResumeError,
     RuntimeTimeoutError,
     RuntimeUnavailableError,
     codex_process_runner,
@@ -362,7 +363,11 @@ class ChatWebSocketService:
                 if conversation is None:
                     return
 
-                if conversation.codex_thread_id != thread_id:
+                if conversation.codex_thread_id and conversation.codex_thread_id != thread_id:
+                    raise RuntimeThreadResumeError(
+                        "Codex runtime returned a different thread id than persisted for this conversation"
+                    )
+                if conversation.codex_thread_id is None:
                     conversation.codex_thread_id = thread_id
 
                 assistant_message = Message(
@@ -446,6 +451,13 @@ class ChatWebSocketService:
                 message=str(exc),
             )
             return
+        except RuntimeThreadResumeError:
+            await self._broadcast_error(
+                conversation_id,
+                code="THREAD_RESUME_FAILED",
+                message="Conversation continuity check failed; could not resume existing thread",
+            )
+            return
         except RuntimeExecutionError as exc:
             await self._persist_partial_if_meaningful(
                 conversation_id=conversation_id,
@@ -518,7 +530,9 @@ class ChatWebSocketService:
             if conversation is None:
                 return
 
-            if thread_id and conversation.codex_thread_id != thread_id:
+            if thread_id and conversation.codex_thread_id and conversation.codex_thread_id != thread_id:
+                return
+            if thread_id and conversation.codex_thread_id is None:
                 conversation.codex_thread_id = thread_id
 
             assistant_message = Message(

@@ -61,7 +61,7 @@ services:
       - ${WORKSPACE_PATH:-./workspace}:${CODEX_WORKSPACE_PATH:-/workspace}
       - ${CODEX_HOST_NODE_PATH:-/usr/bin/node}:${CODEX_CONTAINER_NODE_PATH:-/usr/local/bin/node}:ro
       - ${CODEX_HOST_NODE_MODULES_PATH:-/usr/lib/node_modules}:${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}:ro
-      - ${CODEX_HOST_AUTH_PATH:-/root/.codex}:${CODEX_CONTAINER_AUTH_PATH:-/root/.codex}:ro
+      - ${CODEX_HOST_AUTH_PATH:-/root/.codex}:${CODEX_CONTAINER_AUTH_PATH:-/root/.codex}
     labels:
       - traefik.enable=true
       - traefik.docker.network=n8n_default
@@ -116,7 +116,7 @@ services:
       - ${WORKSPACE_PATH:-./workspace}:${CODEX_WORKSPACE_PATH:-/workspace}
       - ${CODEX_HOST_NODE_PATH:-/usr/bin/node}:${CODEX_CONTAINER_NODE_PATH:-/usr/local/bin/node}:ro
       - ${CODEX_HOST_NODE_MODULES_PATH:-/usr/lib/node_modules}:${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}:ro
-      - ${CODEX_HOST_AUTH_PATH:-/root/.codex}:${CODEX_CONTAINER_AUTH_PATH:-/root/.codex}:ro
+      - ${CODEX_HOST_AUTH_PATH:-/root/.codex}:${CODEX_CONTAINER_AUTH_PATH:-/root/.codex}
 
   codexchat_front:
     container_name: codexchat_front
