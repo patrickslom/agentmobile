@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -47,6 +48,10 @@ class CodexProcessRunner:
         settings = get_settings()
         self._turn_timeout_seconds = settings.codex_turn_timeout_seconds
         self._workspace_path = Path(settings.codex_workspace_path).expanduser()
+        self._runtime_target = settings.codex_runtime_target
+        self._host_workspace_path = settings.codex_host_workspace_path
+        self._host_codex_bin = settings.codex_host_codex_bin
+        self._host_pid = settings.codex_host_pid
 
     @property
     def turn_timeout_seconds(self) -> int:
@@ -160,6 +165,9 @@ class CodexProcessRunner:
             raise RuntimeUnavailableError(
                 f"Codex workspace path is missing or not a directory: {cwd_path}"
             )
+        if self._runtime_target == "host":
+            return await self._start_host_process()
+
         try:
             process = await asyncio.create_subprocess_exec(
                 "codex",
@@ -175,6 +183,41 @@ class CodexProcessRunner:
             raise RuntimeUnavailableError("Codex CLI is not installed in the backend runtime") from exc
         except Exception as exc:  # pragma: no cover
             raise RuntimeUnavailableError("Unable to start Codex runtime process") from exc
+
+        if process.stdin is None or process.stdout is None or process.stderr is None:
+            raise RuntimeUnavailableError("Codex runtime stdio channels were not initialized")
+
+        return _RuntimeState(process=process)
+
+    async def _start_host_process(self) -> _RuntimeState:
+        host_workspace = self._host_workspace_path or str(self._workspace_path)
+        shell_script = (
+            f"cd {shlex.quote(host_workspace)}"
+            f" && exec {shlex.quote(self._host_codex_bin)} app-server --listen stdio://"
+        )
+
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "nsenter",
+                "--target",
+                str(self._host_pid),
+                "--mount",
+                "--uts",
+                "--ipc",
+                "--net",
+                "--pid",
+                "--",
+                "/bin/sh",
+                "-lc",
+                shell_script,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeUnavailableError("Host runtime launch tools are missing (nsenter or /bin/sh)") from exc
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeUnavailableError("Unable to start Codex runtime process in host mode") from exc
 
         if process.stdin is None or process.stdout is None or process.stderr is None:
             raise RuntimeUnavailableError("Codex runtime stdio channels were not initialized")

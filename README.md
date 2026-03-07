@@ -125,6 +125,10 @@ Optional:
 - `ADMIN_BOOTSTRAP_EMAIL` / `ADMIN_BOOTSTRAP_PASSWORD` - seed first admin on first startup
 - `ADMIN_BOOTSTRAP_PASSWORD_HASH` - optional pre-hashed Argon2 password for bootstrap admin
 - `ENABLE_PUBLIC_REGISTRATION` - `false` by default; must be explicitly set to `true` to enable `/api/auth/register`
+- `CODEX_RUNTIME_TARGET` - `container` (default) or `host`
+- `CODEX_HOST_WORKSPACE_PATH` - host path to `cd` into before starting Codex in host mode (defaults to `CODEX_WORKSPACE_PATH`)
+- `CODEX_HOST_CODEX_BIN` - absolute host path to Codex CLI binary (default `/usr/bin/codex`)
+- `CODEX_HOST_PID` - host PID target for namespace entry (default `1`)
 - Backward-compatible aliases: `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_PASSWORD_HASH`
 
 Defaults and limits:
@@ -187,6 +191,11 @@ Codex integration model:
 - This app uses the existing Codex installation/auth on your VPS.
 - The backend launches `codex app-server` privately and streams results to the web UI.
 - One active Codex run is allowed per conversation/thread at a time (lock/queue behavior).
+
+Host runtime mode:
+- Default (`CODEX_RUNTIME_TARGET=container`) runs Codex inside `codexchat_back` container namespace.
+- Set `CODEX_RUNTIME_TARGET=host` to launch Codex inside host namespaces via `nsenter` (lets Codex see host services such as `systemd`/`fail2ban`).
+- Compose config for backend/worker uses `pid: host` + `CAP_SYS_ADMIN` so host mode can enter target namespaces.
 
 ## Mobile UX expectations
 

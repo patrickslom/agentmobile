@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic import field_validator
@@ -33,6 +34,10 @@ class Settings(BaseSettings):
         alias="HEARTBEAT_RUN_STALE_AFTER_SECONDS",
     )
     heartbeat_allowed_base_path: str | None = Field(default=None, alias="HEARTBEAT_ALLOWED_BASE_PATH")
+    codex_runtime_target: str = Field(default="container", alias="CODEX_RUNTIME_TARGET")
+    codex_host_workspace_path: str | None = Field(default=None, alias="CODEX_HOST_WORKSPACE_PATH")
+    codex_host_codex_bin: str = Field(default="/usr/bin/codex", alias="CODEX_HOST_CODEX_BIN")
+    codex_host_pid: int = Field(default=1, alias="CODEX_HOST_PID")
     codex_workspace_path: str = Field(default="/workspace", alias="CODEX_WORKSPACE_PATH")
     uploads_path: str = Field(default="./uploads", alias="UPLOADS_PATH")
     admin_bootstrap_email: str | None = Field(default=None, alias="ADMIN_BOOTSTRAP_EMAIL")
@@ -143,6 +148,40 @@ class Settings(BaseSettings):
             return None
         normalized = value.strip()
         return normalized or None
+
+    @field_validator("codex_runtime_target")
+    @classmethod
+    def validate_codex_runtime_target(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        allowed = {"container", "host"}
+        if normalized not in allowed:
+            raise ValueError(f"CODEX_RUNTIME_TARGET must be one of: {', '.join(sorted(allowed))}")
+        return normalized
+
+    @field_validator("codex_host_workspace_path")
+    @classmethod
+    def validate_codex_host_workspace_path(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("codex_host_codex_bin")
+    @classmethod
+    def validate_codex_host_codex_bin(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("CODEX_HOST_CODEX_BIN cannot be empty")
+        if not Path(normalized).is_absolute():
+            raise ValueError("CODEX_HOST_CODEX_BIN must be an absolute path")
+        return normalized
+
+    @field_validator("codex_host_pid")
+    @classmethod
+    def validate_codex_host_pid(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("CODEX_HOST_PID must be >= 1")
+        return value
 
     @field_validator("uploads_path")
     @classmethod
