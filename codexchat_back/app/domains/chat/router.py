@@ -18,11 +18,11 @@ from app.db.archive_queries import (
 from app.db.models import Conversation, File, Message, Settings, User
 from app.db.session import get_db
 from app.domains.auth.dependencies import get_current_user
+from app.domains.chat.title_summary import DEFAULT_CONVERSATION_TITLE
 from app.domains.warnings import WarningPayload, build_warning_payloads
 
 router = APIRouter(prefix="/conversations", tags=["chat"])
 
-DEFAULT_CONVERSATION_TITLE = "New Conversation"
 MAX_TITLE_LENGTH = 255
 
 
@@ -68,7 +68,10 @@ class MessageFileResponse(BaseModel):
 class ConversationResponse(BaseModel):
     id: str
     title: str
+    summary_short: str | None = None
     codex_thread_id: str | None
+    title_generated_at: datetime | None = None
+    summary_generated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     archived_at: datetime | None
@@ -161,7 +164,10 @@ def _conversation_to_response(
     return ConversationResponse(
         id=str(conversation.id),
         title=conversation.title,
+        summary_short=conversation.summary_short,
         codex_thread_id=conversation.codex_thread_id,
+        title_generated_at=conversation.title_generated_at,
+        summary_generated_at=conversation.summary_generated_at,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
         archived_at=conversation.archived_at,

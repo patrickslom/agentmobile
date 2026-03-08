@@ -153,4 +153,5 @@ def download_file(
         path=str(absolute_path),
         media_type=file_record.mime_type,
         filename=file_record.original_name,
+        content_disposition_type="inline",
     )

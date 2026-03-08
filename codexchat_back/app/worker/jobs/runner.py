@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.db.models import Conversation, HeartbeatJob, HeartbeatRun, Message, Settings
 from app.db.session import SessionLocal
+from app.domains.chat.title_summary import enqueue_title_summary_job_if_ready
 from app.domains.codex.runtime import (
     RuntimeExecutionError,
     RuntimeThreadResumeError,
@@ -157,6 +158,8 @@ async def run_claimed_heartbeat_run(claimed: ClaimedHeartbeatRun) -> None:
                 },
             )
             db.add(assistant_message)
+            db.commit()
+            enqueue_title_summary_job_if_ready(db, conversation_id=conversation.id)
             db.commit()
             heartbeat_service.mark_run_succeeded(db, run_id=claimed.run_id)
     except (

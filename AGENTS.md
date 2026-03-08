@@ -1,23 +1,31 @@
 # Repository Agent Notes
 
-## Frontend Rebuild Modes
+## Frontend Rebuild Rule
 
 This repo supports two frontend rebuild paths when editing directly on the production host.
 
-Default:
+When changing frontend code on this host, you must use the quick rebuild path by default.
+
+Default command:
 
 ```bash
 ./scripts/rebuild-front.sh
 ```
 
-This is the `quick` path:
+This is the required default `quick` path:
 - uses `docker-compose.front-quick.yml`
 - runs `codexchat_front` with `next dev`
 - bind-mounts `./codexchat_front` into the container
 - keeps `node_modules` and `.next` in named Docker volumes
 - avoids the slow production image rebuild loop for normal UI edits
 
-Full rebuild:
+Only use the full production rebuild when the user explicitly asks for it, or when the change affects:
+- frontend dependencies
+- Dockerfile or compose behavior
+- build-time environment or build config
+- production-only verification
+
+Full rebuild command:
 
 ```bash
 ./scripts/rebuild-front.sh full
@@ -28,8 +36,14 @@ This is the strict production-style path:
 - runs the full optimized `next build` image flow
 - use it for dependency changes, build-config changes, and before higher-confidence verification
 
-## Recommended Usage
+Do not use `docker compose up -d --build codexchat_front` directly for routine frontend edits.
+If you choose the full rebuild path, state the reason explicitly before running it.
 
-- Use `quick` for routine component, CSS, layout, and client-side logic edits.
-- Use `full` after changes to frontend dependencies, Dockerfile behavior, or when validating the production build path.
-- Backend rebuilds are already relatively cheap compared with frontend production builds.
+## Database Change Rule
+
+If a change adds, removes, or alters database schema or migration files, the same run must also:
+- apply the migration to the live database
+- rebuild and restart any affected long-running services that use that schema, at minimum `codexchat_back` and `codexchat_worker`
+- verify the updated schema is live before considering the task complete
+
+Do not stop after editing model or Alembic files when database-affecting changes are part of the work.

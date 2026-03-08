@@ -18,6 +18,7 @@ from app.core.errors import AppError
 from app.db.archive_queries import get_conversation
 from app.db.models import Message, Settings, User
 from app.db.session import SessionLocal
+from app.domains.chat.title_summary import enqueue_title_summary_job_if_ready
 from app.domains.codex.runtime import (
     RuntimeExecutionError,
     RuntimeThreadResumeError,
@@ -418,6 +419,8 @@ class ChatWebSocketService:
                 db.add(assistant_message)
                 db.commit()
                 db.refresh(assistant_message)
+                enqueue_title_summary_job_if_ready(db, conversation_id=conversation_id)
+                db.commit()
 
             await self._broadcast_to_conversation(
                 conversation_id,

@@ -32,6 +32,8 @@ import type {
 type ApiConversation = {
   id?: string;
   title?: string | null;
+  summary_short?: string | null;
+  summaryShort?: string | null;
   updated_at?: string;
   updatedAt?: string;
   created_at?: string;
@@ -69,6 +71,7 @@ type ApiMessageFile = {
 type ConversationItem = {
   id: string;
   title: string;
+  summaryShort: string | null;
   updatedAt: string | null;
 };
 
@@ -122,11 +125,13 @@ const MOCK_CONVERSATIONS: ConversationItem[] = [
   {
     id: "mock-1",
     title: "Draft deployment checklist",
+    summaryShort: "Prepared the initial VPS launch checklist and deployment order for a production Codex Chat setup.",
     updatedAt: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
   },
   {
     id: "mock-2",
     title: "Layout polish notes",
+    summaryShort: "Reviewed spacing and sidebar behavior for chat screens across desktop and mobile viewports.",
     updatedAt: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
   },
 ];
@@ -167,6 +172,12 @@ function normalizeConversation(item: ApiConversation): ConversationItem | null {
   return {
     id: item.id,
     title: item.title?.trim() || "Untitled chat",
+    summaryShort:
+      typeof item.summary_short === "string"
+        ? item.summary_short.trim() || null
+        : typeof item.summaryShort === "string"
+          ? item.summaryShort.trim() || null
+          : null,
     updatedAt: item.updated_at ?? item.updatedAt ?? item.created_at ?? item.createdAt ?? null,
   };
 }
@@ -1952,6 +1963,11 @@ function SidebarContent({
                       </span>
                     ) : null}
                   </div>
+                  {conversation.summaryShort ? (
+                    <p className="mt-1 whitespace-normal break-words text-xs text-muted-foreground">
+                      {conversation.summaryShort}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-xs text-muted-foreground" suppressHydrationWarning>
                     {formatUpdatedAt(conversation.updatedAt)}
                   </p>
@@ -2429,17 +2445,20 @@ function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () =
                         className="h-20 w-20 rounded-md border border-border object-cover"
                       />
                     </a>
-                  ) : null}
-                  <a
-                    href={file.downloadPath}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-foreground underline underline-offset-2"
-                    title={file.originalName}
-                  >
-                    {formatAttachmentName(file.originalName)}
-                  </a>
-                  <p className="mt-0.5 break-all text-muted-foreground">{file.storagePath}</p>
+                  ) : (
+                    <>
+                      <a
+                        href={file.downloadPath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-foreground underline underline-offset-2"
+                        title={file.originalName}
+                      >
+                        {formatAttachmentName(file.originalName)}
+                      </a>
+                      <p className="mt-0.5 break-all text-muted-foreground">{file.storagePath}</p>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

@@ -213,7 +213,7 @@ Later:
 - `users`
   - id, email (unique), password_hash, display_name (required, unique), profile_picture_url (optional), created_at
 - `conversations`
-  - id, user_id, title, codex_thread_id, created_at, updated_at
+  - id, user_id, title, summary_short, codex_thread_id, title_generated_at, summary_generated_at, created_at, updated_at
 - `messages`
   - id, conversation_id, user_id (nullable), role (`user|assistant|system`), content (text/json), created_at, metadata_json (author snapshot fields for user messages)
 - `files`
@@ -226,7 +226,12 @@ Later:
 ### Conversation list
 - Sort by `updated_at DESC`
 - Title:
-  - First user message truncated, or an explicit rename later
+  - Default placeholder on create
+  - Background-generated from the first 2 exchanges when still generic
+  - Explicit user rename should be preserved
+- Secondary summary:
+  - Background-generated from the first 2 exchanges
+  - One short sentence shown under the title in the sidebar
 - Optional MVP+ search:
   - Search conversations by title and message text
   - Server-side query for large histories
@@ -247,7 +252,7 @@ Later:
 - `POST /conversations/:id/title` (optional)
 - `GET /conversations/search?q=...` (MVP+)
 - `POST /conversations/:id/files` (upload attachment)
-- `GET /files/:id` (download if authorized)
+- `GET /files/:id` (authorized file open/download; serves inline when browser-supported)
 - `GET /settings`
 - `PATCH /settings`
 - `POST /admin/users` (admin only)
@@ -278,7 +283,7 @@ Later:
 ### Layout
 - Left sidebar:
   - “New chat” button
-  - Conversation list (title + updated time)
+  - Conversation list (title + short summary + updated time)
   - Mobile: full-screen sidebar drawer, opened by hamburger menu
   - Logout
 - Main:
@@ -526,6 +531,7 @@ Recommended default:
 
 ### File exchange
 - User can upload attachments from desktop and mobile
+- Image attachments render as chat thumbnails and open in a new tab without forced download
 - Uploaded files are stored under an app-managed files directory
 - Uploaded files are available to Codex in the correct conversation context
 - On send, backend passes file path(s) to Codex alongside the user message content

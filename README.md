@@ -34,7 +34,7 @@ Privacy notice:
 Deploy once, then use it from desktop or phone:
 - start new chats
 - resume previous chats
-- upload/download files
+- upload files, preview images inline, and open attachments in a new tab
 - optionally run scheduled heartbeat instructions
 
 ## What this is
@@ -176,6 +176,25 @@ One-liner bootstrap installer:
 8. Open the printed URL on desktop or mobile and log in.
 9. Admin creates additional users from `Settings -> Admin` and shares temporary credentials.
 
+## Frontend Rebuild Modes
+
+When editing directly on the server, use:
+
+```bash
+./scripts/rebuild-front.sh
+```
+
+This defaults to `quick` mode:
+- runs `codexchat_front` with `next dev`
+- bind-mounts the frontend source into the container
+- avoids the full production image rebuild for normal UI changes
+
+Use a full production rebuild when you change frontend dependencies or want the exact production build path:
+
+```bash
+./scripts/rebuild-front.sh full
+```
+
 ## User Flow
 
 1. Open app URL on desktop or phone.
@@ -190,6 +209,7 @@ One-liner bootstrap installer:
 7. Reopen old conversations from sidebar/drawer.
 8. Upload files into chat and download generated/shared files.
 9. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
+10. After the first 2 exchanges, the app generates a clearer chat title and short sidebar summary in the background.
 
 Codex integration model:
 - This app uses the existing Codex installation/auth on your VPS.
@@ -205,6 +225,7 @@ Host runtime mode:
 
 - ChatGPT-like layout on desktop and mobile.
 - Full-screen sidebar drawer on mobile (hamburger menu).
+- Conversation history rows show generated title, short summary, and updated time.
 - Composer fixed at bottom with Lucide message/attachment/send icons.
 - Composer includes safe-area + keyboard-aware bottom offset handling on iOS and Android so the active input remains visible while typing.
 - New/resume flows work the same across devices.

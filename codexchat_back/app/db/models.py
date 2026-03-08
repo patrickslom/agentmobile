@@ -66,7 +66,10 @@ class Conversation(Base):
         server_default=text("gen_random_uuid()"),
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    summary_short: Mapped[str | None] = mapped_column(String(255), nullable=True)
     codex_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    title_generated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    summary_generated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
@@ -433,6 +436,65 @@ class HeartbeatRun(Base):
     )
 
 
+class ConversationTitleSummaryJob(Base):
+    __tablename__ = "conversation_title_summary_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'completed', 'failed')",
+            name="ck_conversation_title_summary_jobs_status",
+        ),
+        CheckConstraint(
+            "attempt_count >= 0",
+            name="ck_conversation_title_summary_jobs_attempt_count_non_negative",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        server_default=text("'pending'"),
+    )
+    attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        server_default=text("0"),
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    error_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+
+
 class ConversationLock(Base):
     __tablename__ = "conversation_locks"
     __table_args__ = (
@@ -494,6 +556,7 @@ __all__ = [
     "Base",
     "Conversation",
     "ConversationLock",
+    "ConversationTitleSummaryJob",
     "File",
     "HeartbeatJob",
     "HeartbeatRun",

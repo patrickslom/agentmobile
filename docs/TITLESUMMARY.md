@@ -1,11 +1,11 @@
 # Title + Summary Plan
 
 ## Goal
-Generate a clear chat title and short summary from the first 5 exchanges so conversation history is easy to scan.
+Generate a clear chat title and short summary from the first 2 exchanges so conversation history is easy to scan.
 
 ## Definitions
 - Exchange = one user message + one assistant response.
-- Input window = first 5 exchanges of a conversation (up to 10 messages total).
+- Input window = first 2 exchanges of a conversation (up to 4 messages total).
 
 ## Behavior
 1. After enough early messages are available, agent generates:
@@ -27,7 +27,7 @@ Generate a clear chat title and short summary from the first 5 exchanges so conv
 - Focus on user intent and current work scope.
 
 ## Trigger Strategy
-- Primary trigger: when conversation reaches 5 exchanges.
+- Primary trigger: when conversation reaches 2 exchanges.
 - Early trigger (optional): after 2-3 exchanges if confidence is high.
 - Regeneration trigger:
   - explicit user action ("rename/regenerate summary")
