@@ -23,6 +23,7 @@ import MessageMarkdown from "@/components/chat/message-markdown";
 import type {
   AssistantDeltaEvent,
   AssistantDoneEvent,
+  AssistantWaitingEvent,
   ChatErrorEvent,
   ChatMessage,
   ChatMessageFile,
@@ -108,6 +109,7 @@ type AttachmentDraft = {
 };
 
 const DEFAULT_UPLOAD_LIMIT_MB = 15;
+const DEFAULT_CONVERSATION_TITLE = "New Conversation";
 const ATTACHMENT_NAME_BASE_MAX_CHARS = 15;
 const PREVIEWABLE_IMAGE_MIME_TYPES = new Set([
   "image/png",
@@ -119,6 +121,7 @@ const PREVIEWABLE_IMAGE_MIME_TYPES = new Set([
 type ChatEvent =
   | AssistantDeltaEvent
   | AssistantDoneEvent
+  | AssistantWaitingEvent
   | ChatErrorEvent
   | ConversationBusyEvent
   | {
@@ -129,6 +132,7 @@ type ChatEvent =
     };
 
 const SHOULD_USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "1";
+const SIDEBAR_METADATA_REFRESH_DELAYS_MS = [1500, 4000, 8000, 12000];
 
 const MOCK_CONVERSATIONS: ConversationItem[] = [
   {
@@ -189,6 +193,17 @@ function normalizeConversation(item: ApiConversation): ConversationItem | null {
           : null,
     updatedAt: item.updated_at ?? item.updatedAt ?? item.created_at ?? item.createdAt ?? null,
   };
+}
+
+function conversationNeedsSidebarMetadataRefresh(conversation: ConversationItem | undefined): boolean {
+  if (!conversation) {
+    return false;
+  }
+
+  return (
+    conversation.title.trim() === DEFAULT_CONVERSATION_TITLE ||
+    !conversation.summaryShort?.trim()
+  );
 }
 
 function isChatRole(value: string): value is ChatRole {
@@ -605,6 +620,25 @@ function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessa
   return mergeMessagesById(next);
 }
 
+function normalizePendingAssistantOrder(messages: ChatMessage[]): ChatMessage[] {
+  const pendingAssistantIndex = messages.findIndex(
+    (message) => message.role === "assistant" && message.pending,
+  );
+  if (pendingAssistantIndex === -1) {
+    return messages;
+  }
+
+  const lastUserIndex = [...messages].map((message) => message.role).lastIndexOf("user");
+  if (lastUserIndex === -1 || pendingAssistantIndex === lastUserIndex + 1) {
+    return messages;
+  }
+
+  const next = [...messages];
+  const [pendingAssistant] = next.splice(pendingAssistantIndex, 1);
+  next.splice(lastUserIndex + (pendingAssistantIndex < lastUserIndex ? 0 : 1), 0, pendingAssistant);
+  return next;
+}
+
 export default function ChatWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -649,6 +683,8 @@ export default function ChatWorkspace() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
+  const conversationsRef = useRef<ConversationItem[]>([]);
+  const sidebarRefreshTimersRef = useRef<Record<string, number[]>>({});
   const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
   const wsResolution = useMemo(() => {
     if (!hasMounted) {
@@ -673,10 +709,24 @@ export default function ChatWorkspace() {
       return [];
     }
 
-    const persisted = messagesByConversationId[selectedConversationId] ?? [];
+    const persisted = normalizePendingAssistantOrder(
+      messagesByConversationId[selectedConversationId] ?? [],
+    );
     const streaming = streamDraftByConversationId[selectedConversationId];
     if (!streaming) {
       return persisted;
+    }
+
+    const pendingAssistantIndex = persisted.findIndex(
+      (message) => message.role === "assistant" && message.pending,
+    );
+    if (pendingAssistantIndex !== -1) {
+      const next = [...persisted];
+      next[pendingAssistantIndex] = {
+        ...next[pendingAssistantIndex],
+        content: streaming,
+      };
+      return next;
     }
 
     return [
@@ -697,6 +747,10 @@ export default function ChatWorkspace() {
     : false;
   const selectedSendError = selectedConversationId ? (sendErrorByConversationId[selectedConversationId] ?? null) : null;
   const uploadLimitBytes = uploadLimitMb * 1024 * 1024;
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   const loadConversations = useCallback(
     async (mode: "initial" | "refresh" = "initial") => {
@@ -744,6 +798,92 @@ export default function ChatWorkspace() {
     [apiBaseUrl, router],
   );
 
+  const clearSidebarRefreshTimers = useCallback((conversationId: string) => {
+    const timers = sidebarRefreshTimersRef.current[conversationId] ?? [];
+    for (const timerId of timers) {
+      window.clearTimeout(timerId);
+    }
+    delete sidebarRefreshTimersRef.current[conversationId];
+  }, []);
+
+  const scheduleSidebarMetadataRefresh = useCallback((conversationId: string) => {
+    clearSidebarRefreshTimers(conversationId);
+
+    if (
+      !conversationNeedsSidebarMetadataRefresh(
+        conversationsRef.current.find((item) => item.id === conversationId),
+      )
+    ) {
+      return;
+    }
+
+    sidebarRefreshTimersRef.current[conversationId] = SIDEBAR_METADATA_REFRESH_DELAYS_MS.map((delayMs, index) =>
+      window.setTimeout(() => {
+        void loadConversations("refresh").then(() => {
+          const refreshedConversation = conversationsRef.current.find((item) => item.id === conversationId);
+          if (!conversationNeedsSidebarMetadataRefresh(refreshedConversation)) {
+            clearSidebarRefreshTimers(conversationId);
+            return;
+          }
+
+          if (index === SIDEBAR_METADATA_REFRESH_DELAYS_MS.length - 1) {
+            clearSidebarRefreshTimers(conversationId);
+          }
+        });
+      }, delayMs),
+    );
+  }, [clearSidebarRefreshTimers, loadConversations]);
+
+  const ensurePendingAssistantMessage = useCallback((conversationId: string) => {
+    setMessagesByConversationId((previous) => {
+      const current = previous[conversationId] ?? [];
+      const hasPendingAssistant = current.some(
+        (message) => message.role === "assistant" && message.pending,
+      );
+      if (hasPendingAssistant) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [conversationId]: [
+          ...current,
+          {
+            id: createClientMessageId("assistant-waiting"),
+            role: "assistant",
+            content: "",
+            createdAt: new Date().toISOString(),
+            pending: true,
+          },
+        ],
+      };
+    });
+  }, []);
+
+  const clearPendingAssistantMessage = useCallback((conversationId: string) => {
+    setMessagesByConversationId((previous) => {
+      const current = previous[conversationId] ?? [];
+      const next = current.filter((message) => !(message.role === "assistant" && message.pending));
+      if (next.length === current.length) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        [conversationId]: next,
+      };
+    });
+    setStreamDraftByConversationId((previous) => {
+      if (!(conversationId in previous)) {
+        return previous;
+      }
+
+      const next = { ...previous };
+      delete next[conversationId];
+      return next;
+    });
+  }, []);
+
   const loadConversationMessages = useCallback(
     async (conversationId: string) => {
       setTimelineLoading(true);
@@ -787,6 +927,12 @@ export default function ChatWorkspace() {
   useEffect(() => {
     void loadConversations("initial");
   }, [loadConversations]);
+
+  useEffect(() => () => {
+    for (const conversationId of Object.keys(sidebarRefreshTimersRef.current)) {
+      clearSidebarRefreshTimers(conversationId);
+    }
+  }, [clearSidebarRefreshTimers]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -1424,11 +1570,21 @@ export default function ChatWorkspace() {
           ...previous,
           [conversationId]: true,
         }));
+        ensurePendingAssistantMessage(conversationId);
 
         setStreamDraftByConversationId((previous) => ({
           ...previous,
           [conversationId]: `${previous[conversationId] ?? ""}${delta}`,
         }));
+        return;
+      }
+
+      if (event.type === "assistant_waiting") {
+        setBusyByConversationId((previous) => ({
+          ...previous,
+          [conversationId]: true,
+        }));
+        ensurePendingAssistantMessage(conversationId);
         return;
       }
 
@@ -1450,6 +1606,7 @@ export default function ChatWorkspace() {
           doneEvent.status,
           doneEvent.partial === true,
         );
+        scheduleSidebarMetadataRefresh(conversationId);
         return;
       }
 
@@ -1484,6 +1641,7 @@ export default function ChatWorkspace() {
           ...previous,
           [conversationId]: false,
         }));
+        clearPendingAssistantMessage(conversationId);
 
         if (isBusyError) {
           setBusyByConversationId((previous) => ({
@@ -1508,7 +1666,15 @@ export default function ChatWorkspace() {
         }
       }
     },
-    [applyAssistantDone, applyCreatedMessage, markLatestSendingMessageAsFailed, selectedConversationId],
+    [
+      applyAssistantDone,
+      applyCreatedMessage,
+      clearPendingAssistantMessage,
+      ensurePendingAssistantMessage,
+      markLatestSendingMessageAsFailed,
+      scheduleSidebarMetadataRefresh,
+      selectedConversationId,
+    ],
   );
 
   const {
@@ -1575,6 +1741,7 @@ export default function ChatWorkspace() {
 
       if (!sent) {
         markMessageAsFailed(conversationId, optimisticId);
+        clearPendingAssistantMessage(conversationId);
         setSendErrorByConversationId((previous) => ({
           ...previous,
           [conversationId]: "Message failed to send. Reconnect and retry.",
@@ -1583,6 +1750,11 @@ export default function ChatWorkspace() {
       }
 
       markMessageAsSent(conversationId, optimisticId);
+      ensurePendingAssistantMessage(conversationId);
+      setBusyByConversationId((previous) => ({
+        ...previous,
+        [conversationId]: true,
+      }));
       setAttachmentDrafts([]);
       setAttachmentError(null);
       return true;
@@ -1590,7 +1762,9 @@ export default function ChatWorkspace() {
     [
       appendOptimisticUserMessage,
       attachmentDrafts,
+      clearPendingAssistantMessage,
       ensureConversationForSend,
+      ensurePendingAssistantMessage,
       markMessageAsFailed,
       markMessageAsSent,
       sendJsonMessage,
@@ -1643,6 +1817,7 @@ export default function ChatWorkspace() {
 
     if (!sent) {
       markMessageAsFailed(conversationId, messageId);
+      clearPendingAssistantMessage(conversationId);
       setSendErrorByConversationId((previous) => ({
         ...previous,
         [conversationId]: "Message failed to send. Reconnect and retry.",
@@ -1651,11 +1826,24 @@ export default function ChatWorkspace() {
     }
 
     markMessageAsSent(conversationId, messageId);
+    ensurePendingAssistantMessage(conversationId);
+    setBusyByConversationId((previous) => ({
+      ...previous,
+      [conversationId]: true,
+    }));
     setSendErrorByConversationId((previous) => ({
       ...previous,
       [conversationId]: null,
     }));
-  }, [markMessageAsFailed, markMessageAsSent, messagesByConversationId, selectedConversationId, sendJsonMessage]);
+  }, [
+    clearPendingAssistantMessage,
+    ensurePendingAssistantMessage,
+    markMessageAsFailed,
+    markMessageAsSent,
+    messagesByConversationId,
+    selectedConversationId,
+    sendJsonMessage,
+  ]);
 
   const onStopStreaming = useCallback(() => {
     if (!selectedConversationId || !busyByConversationId[selectedConversationId]) {
@@ -1969,7 +2157,7 @@ export default function ChatWorkspace() {
           setValue={setComposerValue}
           onSubmit={onComposerSubmit}
           disabled={!canSubmitComposer}
-          isBusy={selectedConversationBusy}
+          interactionLocked={selectedConversationBusy || isCreatingConversation || isUploadingAttachments}
           isCreatingConversation={isCreatingConversation}
           isUploadingAttachments={isUploadingAttachments}
           connectionState={connectionState}
@@ -2455,7 +2643,7 @@ type ComposerPanelProps = {
   setValue: (value: string) => void;
   onSubmit: () => Promise<void>;
   disabled: boolean;
-  isBusy: boolean;
+  interactionLocked: boolean;
   isCreatingConversation: boolean;
   isUploadingAttachments: boolean;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -2474,7 +2662,7 @@ function ComposerPanel({
   setValue,
   onSubmit,
   disabled,
-  isBusy,
+  interactionLocked,
   isCreatingConversation,
   isUploadingAttachments,
   connectionState,
@@ -2508,9 +2696,7 @@ function ComposerPanel({
       ? "Creating conversation…"
       : isUploadingAttachments
         ? "Uploading attachments…"
-        : isBusy
-          ? "This conversation is busy."
-          : hasConfigError || connectionState !== "connected"
+        : hasConfigError || connectionState !== "connected"
             ? "WebSocket is not connected."
             : null);
 
@@ -2532,6 +2718,7 @@ function ComposerPanel({
                 type="file"
                 className="sr-only"
                 multiple
+                disabled={interactionLocked}
                 onChange={(event) => {
                   onPickAttachments(event.target.files);
                   event.currentTarget.value = "";
@@ -2545,6 +2732,7 @@ function ComposerPanel({
               onKeyDown={onKeyDown}
               rows={1}
               placeholder="Send a message…"
+              disabled={interactionLocked}
               className="max-h-40 min-h-10 w-full resize-none rounded-full border border-border bg-background px-4 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/15"
             />
             <button
@@ -2567,6 +2755,7 @@ function ComposerPanel({
                     type="button"
                     aria-label={`Remove ${draft.file.name}`}
                     className="rounded-full border border-border p-1 leading-none transition hover:bg-muted"
+                    disabled={interactionLocked}
                     onClick={() => onRemoveAttachment(draft.id)}
                   >
                     <X className="h-3 w-3" />
@@ -2654,6 +2843,8 @@ function MessageRow({
   const label = messageLabel(message);
   const showAvatar = message.role === "user";
   const showStoppedMarker = message.role === "assistant" && message.turnStatus === "stopped";
+  const showWaitingDots = message.role === "assistant" && message.pending && !message.content.trim();
+  const showStreamingTrail = message.role === "assistant" && message.pending && !showWaitingDots;
 
   return (
     <div className={rowClassName}>
@@ -2706,8 +2897,14 @@ function MessageRow({
           </div>
         </header>
         <div className="text-sm leading-6">
-          <MessageMarkdown content={message.content} />
-          {message.role === "assistant" && message.pending ? (
+          {showWaitingDots ? (
+            <span className="inline-flex min-h-6 items-center text-lg text-muted-foreground">
+              <StreamingTrail />
+            </span>
+          ) : (
+            <MessageMarkdown content={message.content} />
+          )}
+          {showStreamingTrail ? (
             <div className="mt-1 flex items-center justify-between gap-3">
               <StreamingTrail />
               {onStop ? (

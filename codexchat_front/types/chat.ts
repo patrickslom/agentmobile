@@ -48,6 +48,12 @@ export type AssistantDoneEvent = {
   partial?: boolean;
 };
 
+export type AssistantWaitingEvent = {
+  type: "assistant_waiting";
+  conversationId?: string;
+  conversation_id?: string;
+};
+
 export type MessageCreatedEvent = {
   type: "message_created";
   conversationId?: string;

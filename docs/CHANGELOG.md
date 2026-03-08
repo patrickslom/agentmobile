@@ -13,6 +13,7 @@ Example:
 - `2026-03-08 - Add changelog - Created docs/CHANGELOG.md with usage instructions and entry format guidance.`
 
 Entries:
+- `2026-03-08 - Add pending assistant placeholder and sidebar refresh - Replaced inline busy text with an immediate animated assistant placeholder, kept response ordering stable during streaming, and refreshed the sidebar after background title/summary updates.`
 - `2026-03-08 - Add bookmark management and docs expansion - Implemented assistant-message bookmarks with mine/all views, team-visible bookmark state, backend/frontend support, and expanded project documentation.`
 - `2026-03-08 - Add title/summary jobs and inline image attachments - Added conversation title/summary background job support, exposed sidebar summary metadata, and changed chat image attachments to open inline in a new tab from thumbnail previews.`
 - `2026-03-08 - Create changelog - Added docs/CHANGELOG.md with instructions for agents to record changes using date, title, and short description in newest-first order.`

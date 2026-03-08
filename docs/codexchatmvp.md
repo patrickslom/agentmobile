@@ -277,6 +277,7 @@ Later:
   - `{type:"send_message", conversationId, content}`
   - `{type:"resume", conversationId}`
 - Server streams:
+  - `{type:"assistant_waiting", conversationId}`
   - `{type:"assistant_delta", conversationId, delta}`
   - `{type:"assistant_done", conversationId}`
   - `{type:"error", message}`
@@ -294,6 +295,7 @@ Later:
   - Logout
 - Main:
   - Message list with roles and formatting
+  - Immediate pending assistant `...` placeholder after send acceptance
   - Streaming assistant output
   - Markdown rendering with code blocks + copy
 - Input:
@@ -301,7 +303,8 @@ Later:
   - Attachment button (camera/files on mobile, files on desktop)
   - Message/attachment/send controls use iconography for fast recognition
   - Enter to send, Shift+Enter newline
-  - Disable while response in progress (or allow interrupt later)
+  - Disable send and attachment actions while response is in progress
+  - Do not rely on a separate generic busy banner when the pending assistant row already communicates the waiting state
 
 ### Responsiveness (required)
 - Desktop should mirror ChatGPT-like split layout (sidebar + main pane)
@@ -577,7 +580,7 @@ Recommended default:
 
 ### M3 — Codex Bridge
 - Spawn codex app-server
-- Send user message → receive streaming assistant output
+- Send user message → show pending assistant `...` state → receive streaming assistant output
 - Resume conversation via stored thread_id
 
 ### M4 — UI Polish

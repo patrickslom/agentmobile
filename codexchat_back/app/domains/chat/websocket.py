@@ -421,6 +421,7 @@ class ChatWebSocketService:
                     },
                 },
             )
+            await self._broadcast_assistant_waiting(conversation_id)
 
             prompt = _build_prompt_with_files(content=content, file_paths=message_file_paths)
             turn_result = await codex_process_runner.run_turn(
@@ -786,6 +787,8 @@ class ChatWebSocketService:
         with SessionLocal() as db:
             state = conversation_lock_service.get_state(db, conversation_id=conversation_id)
         await self._send_thread_busy_state(websocket, state=state)
+        if state.is_busy:
+            await self._send_assistant_waiting(websocket, conversation_id=conversation_id)
 
     async def _send_thread_busy_state(self, websocket: WebSocket, *, state: LockState) -> None:
         await self._send_json(
@@ -816,6 +819,24 @@ class ChatWebSocketService:
             await websocket.send_json(payload)
         except Exception:
             await self._unsubscribe_socket(websocket)
+
+    async def _send_assistant_waiting(self, websocket: WebSocket, *, conversation_id: UUID) -> None:
+        await self._send_json(
+            websocket,
+            {
+                "type": "assistant_waiting",
+                "conversation_id": str(conversation_id),
+            },
+        )
+
+    async def _broadcast_assistant_waiting(self, conversation_id: UUID) -> None:
+        await self._broadcast_to_conversation(
+            conversation_id,
+            {
+                "type": "assistant_waiting",
+                "conversation_id": str(conversation_id),
+            },
+        )
 
     async def _broadcast_to_conversation(self, conversation_id: UUID, payload: dict[str, object]) -> None:
         async with self._state_lock:
