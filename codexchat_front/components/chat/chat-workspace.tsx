@@ -4,8 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Bookmark,
+  FolderKanban,
   LogOut,
   Menu,
+  MessageSquare,
+  Octagon,
   PanelLeftClose,
   Paperclip,
   Search,
@@ -52,6 +56,10 @@ type ApiConversationMessage = {
   author_display_name?: string | null;
   author_profile_picture_url?: string | null;
   is_current_user_author?: boolean | null;
+  metadata_json?: {
+    partial?: unknown;
+    turn_status?: unknown;
+  };
 };
 
 type ApiMessageFile = {
@@ -97,6 +105,8 @@ type AttachmentDraft = {
   id: string;
   file: File;
 };
+
+type SidebarModuleId = "chat" | "bookmarks" | "projects" | "settings";
 
 const DEFAULT_UPLOAD_LIMIT_MB = 15;
 const ATTACHMENT_NAME_BASE_MAX_CHARS = 15;
@@ -278,6 +288,14 @@ function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
     authorProfilePictureUrl: normalizeStringField(item.author_profile_picture_url),
     isCurrentUserAuthor: normalizeBooleanField(item.is_current_user_author),
     createdAt: item.created_at ?? item.createdAt ?? new Date().toISOString(),
+    partial: normalizeBooleanField(item.metadata_json?.partial),
+    turnStatus:
+      item.metadata_json?.turn_status === "completed" ||
+      item.metadata_json?.turn_status === "failed" ||
+      item.metadata_json?.turn_status === "timed_out" ||
+      item.metadata_json?.turn_status === "stopped"
+        ? item.metadata_json.turn_status
+        : undefined,
     files: Array.isArray(item.files)
       ? item.files
           .map((fileItem) => normalizeMessageFile(fileItem as ApiMessageFile))
@@ -567,7 +585,7 @@ export default function ChatWorkspace() {
   const selectedFromQuery = searchParams.get("conversationId");
 
   const [isDrawerOpen, setDrawerOpen] = useState(false);
-  const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeSidebarModule, setActiveSidebarModule] = useState<SidebarModuleId | null>(null);
   const [isLoading, setLoading] = useState(true);
   const [isRefreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -592,6 +610,7 @@ export default function ChatWorkspace() {
   const [isUploadingAttachments, setUploadingAttachments] = useState(false);
   const [uploadLimitMb, setUploadLimitMb] = useState(DEFAULT_UPLOAD_LIMIT_MB);
   const [sendErrorByConversationId, setSendErrorByConversationId] = useState<Record<string, string | null>>({});
+  const [stoppingByConversationId, setStoppingByConversationId] = useState<Record<string, boolean>>({});
   const [isCreatingConversation, setCreatingConversation] = useState(false);
   const [composerBottomOffset, setComposerBottomOffset] = useState(0);
   const [introQuote, setIntroQuote] = useState("What are we building today?");
@@ -618,6 +637,7 @@ export default function ChatWorkspace() {
   const isSearchActive = normalizedSearchQuery.length > 0;
   const visibleConversations = isSearchActive ? searchResults : conversations;
   const shouldShowIntroQuote = !selectedConversationId;
+  const isSidebarCollapsed = activeSidebarModule === null;
 
   const selectedTimelineMessages = useMemo(() => {
     if (!selectedConversationId) {
@@ -638,6 +658,7 @@ export default function ChatWorkspace() {
         content: streaming,
         createdAt: new Date().toISOString(),
         pending: true,
+        turnStatus: undefined,
       },
     ];
   }, [messagesByConversationId, selectedConversationId, streamDraftByConversationId]);
@@ -1142,19 +1163,26 @@ export default function ChatWorkspace() {
     conversationId: string,
     messageId: string | null,
     content: string | null,
+    status: ChatMessage["turnStatus"],
+    partial: boolean,
   ) => {
     setBusyByConversationId((previous) => ({
+      ...previous,
+      [conversationId]: false,
+    }));
+    setStoppingByConversationId((previous) => ({
       ...previous,
       [conversationId]: false,
     }));
 
     setStreamDraftByConversationId((previous) => {
       const draft = previous[conversationId] ?? "";
-      const finalContent = (content ?? "").trim() ? content : draft;
+      const normalizedContent = content ?? "";
+      const finalContent = normalizedContent.trim() ? normalizedContent : draft;
       const rest = { ...previous };
       delete rest[conversationId];
 
-      if (!finalContent || !finalContent.trim()) {
+      if ((!finalContent || !finalContent.trim()) && status !== "stopped") {
         return rest;
       }
 
@@ -1168,6 +1196,8 @@ export default function ChatWorkspace() {
               role: "assistant",
               content: finalContent,
               createdAt: new Date().toISOString(),
+              partial,
+              turnStatus: status,
             }),
           };
         }
@@ -1180,6 +1210,8 @@ export default function ChatWorkspace() {
             content: finalContent,
             pending: false,
             createdAt: new Date().toISOString(),
+            partial,
+            turnStatus: status,
           };
 
           return {
@@ -1197,6 +1229,8 @@ export default function ChatWorkspace() {
               role: "assistant",
               content: finalContent,
               createdAt: new Date().toISOString(),
+              partial,
+              turnStatus: status,
             },
           ],
         };
@@ -1302,6 +1336,8 @@ export default function ChatWorkspace() {
           conversationId,
           typeof doneEvent.message_id === "string" ? doneEvent.message_id : null,
           doneContent,
+          doneEvent.status,
+          doneEvent.partial === true,
         );
         return;
       }
@@ -1312,12 +1348,19 @@ export default function ChatWorkspace() {
         return;
       }
 
-      if (event.type === "conversation_busy" || event.type === "thread_busy") {
+      if (event.type === "conversation_busy" || event.type === "thread_busy" || event.type === "thread_busy_state") {
         const busyEvent = event as ConversationBusyEvent;
+        const isBusy = busyEvent.busy ?? busyEvent.is_busy ?? true;
         setBusyByConversationId((previous) => ({
           ...previous,
-          [conversationId]: busyEvent.busy ?? true,
+          [conversationId]: isBusy,
         }));
+        if (!isBusy) {
+          setStoppingByConversationId((previous) => ({
+            ...previous,
+            [conversationId]: false,
+          }));
+        }
         return;
       }
 
@@ -1325,6 +1368,11 @@ export default function ChatWorkspace() {
         const errorEvent = event as ChatErrorEvent;
         const code = (errorEvent.code ?? "").toUpperCase();
         const isBusyError = code === "THREAD_BUSY" || code === "CONVERSATION_BUSY";
+
+        setStoppingByConversationId((previous) => ({
+          ...previous,
+          [conversationId]: false,
+        }));
 
         if (isBusyError) {
           setBusyByConversationId((previous) => ({
@@ -1498,6 +1546,33 @@ export default function ChatWorkspace() {
     }));
   }, [markMessageAsFailed, markMessageAsSent, messagesByConversationId, selectedConversationId, sendJsonMessage]);
 
+  const onStopStreaming = useCallback(() => {
+    if (!selectedConversationId || !busyByConversationId[selectedConversationId]) {
+      return;
+    }
+
+    setStoppingByConversationId((previous) => ({
+      ...previous,
+      [selectedConversationId]: true,
+    }));
+
+    const sent = sendJsonMessage({
+      type: "stop",
+      conversationId: selectedConversationId,
+    });
+
+    if (!sent) {
+      setStoppingByConversationId((previous) => ({
+        ...previous,
+        [selectedConversationId]: false,
+      }));
+      setSendErrorByConversationId((previous) => ({
+        ...previous,
+        [selectedConversationId]: "Stop request failed to send. Reconnect and retry.",
+      }));
+    }
+  }, [busyByConversationId, selectedConversationId, sendJsonMessage]);
+
   const canSubmitComposer =
     composerValue.trim().length > 0 &&
     !selectedConversationBusy &&
@@ -1551,9 +1626,9 @@ export default function ChatWorkspace() {
       return;
     }
 
-    const saved = window.localStorage.getItem("chat_sidebar_collapsed");
-    if (saved === "1") {
-      setSidebarCollapsed(true);
+    const saved = window.localStorage.getItem("chat_sidebar_active_module");
+    if (saved === "chat" || saved === "bookmarks" || saved === "projects" || saved === "settings") {
+      setActiveSidebarModule(saved);
     }
   }, []);
 
@@ -1562,8 +1637,13 @@ export default function ChatWorkspace() {
       return;
     }
 
-    window.localStorage.setItem("chat_sidebar_collapsed", isSidebarCollapsed ? "1" : "0");
-  }, [isSidebarCollapsed]);
+    if (activeSidebarModule) {
+      window.localStorage.setItem("chat_sidebar_active_module", activeSidebarModule);
+      return;
+    }
+
+    window.localStorage.removeItem("chat_sidebar_active_module");
+  }, [activeSidebarModule]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1626,7 +1706,7 @@ export default function ChatWorkspace() {
   }, [selectedConversationId, selectedTimelineMessages, timelineLoading]);
 
   const onSearchAction = useCallback(() => {
-    setSidebarCollapsed(false);
+    setActiveSidebarModule("chat");
     window.requestAnimationFrame(() => {
       searchInputRef.current?.focus();
     });
@@ -1639,35 +1719,29 @@ export default function ChatWorkspace() {
       }`}
     >
       <aside className="hidden border-r border-border bg-muted/40 md:sticky md:top-0 md:flex md:h-screen md:flex-col">
-        {isSidebarCollapsed ? (
-          <CollapsedSidebarContent
-            onExpand={() => setSidebarCollapsed(false)}
-            onSearchAction={onSearchAction}
-            onNewChat={onNewChat}
-          />
-        ) : (
-          <SidebarContent
-            conversations={visibleConversations}
-            searchQuery={conversationSearchQuery}
-            isSearchActive={isSearchActive}
-            isSearchLoading={isSearchLoading}
-            searchErrorMessage={searchErrorMessage}
-            selectedConversationId={selectedConversationId}
-            busyByConversationId={busyByConversationId}
-            isLoading={isLoading}
-            isRefreshing={isRefreshing}
-            errorMessage={errorMessage}
-            listRef={listRef}
-            searchInputRef={searchInputRef}
-            onConversationListScroll={onConversationListScroll}
-            onSelectConversation={onSelectConversation}
-            onNewChat={onNewChat}
-            onSearchChange={setConversationSearchQuery}
-            onRetrySearch={() => void searchConversations(debouncedConversationSearchQuery)}
-            onRetry={() => void loadConversations("refresh")}
-            onCollapse={() => setSidebarCollapsed(true)}
-          />
-        )}
+        <DesktopSidebar
+          conversations={visibleConversations}
+          searchQuery={conversationSearchQuery}
+          isSearchActive={isSearchActive}
+          isSearchLoading={isSearchLoading}
+          searchErrorMessage={searchErrorMessage}
+          selectedConversationId={selectedConversationId}
+          busyByConversationId={busyByConversationId}
+          isLoading={isLoading}
+          isRefreshing={isRefreshing}
+          errorMessage={errorMessage}
+          listRef={listRef}
+          searchInputRef={searchInputRef}
+          onConversationListScroll={onConversationListScroll}
+          onSelectConversation={onSelectConversation}
+          onNewChat={onNewChat}
+          onSearchChange={setConversationSearchQuery}
+          onRetrySearch={() => void searchConversations(debouncedConversationSearchQuery)}
+          onRetry={() => void loadConversations("refresh")}
+          activeModule={activeSidebarModule}
+          onModuleToggle={setActiveSidebarModule}
+          onSearchAction={onSearchAction}
+        />
       </aside>
 
       <div className="min-w-0">
@@ -1715,6 +1789,7 @@ export default function ChatWorkspace() {
                 onSearchChange={setConversationSearchQuery}
                 onRetrySearch={() => void searchConversations(debouncedConversationSearchQuery)}
                 onRetry={() => void loadConversations("refresh")}
+                module="chat"
                 mobile
                 onClose={() => setDrawerOpen(false)}
               />
@@ -1751,7 +1826,9 @@ export default function ChatWorkspace() {
               errorMessage={timelineError}
               messages={selectedTimelineMessages}
               selectedConversationId={selectedConversationId}
+              isStopping={selectedConversationId ? Boolean(stoppingByConversationId[selectedConversationId]) : false}
               onRetryFailedMessage={onRetryFailedMessage}
+              onStopStreaming={onStopStreaming}
               onRetry={() => selectedConversationId ? void loadConversationMessages(selectedConversationId) : undefined}
             />
           )}
@@ -1798,7 +1875,7 @@ type SidebarContentProps = {
   onSearchChange: (value: string) => void;
   onRetrySearch: () => void;
   onRetry: () => void;
-  onCollapse?: () => void;
+  module: SidebarModuleId;
   mobile?: boolean;
   onClose?: () => void;
 };
@@ -1822,7 +1899,7 @@ function SidebarContent({
   onSearchChange,
   onRetrySearch,
   onRetry,
-  onCollapse,
+  module,
   mobile = false,
   onClose,
 }: SidebarContentProps) {
@@ -1833,28 +1910,16 @@ function SidebarContent({
           <WinkingLogo size={24} />
           <span>CodexChat</span>
         </Link>
-        <div className="flex items-center gap-2">
-          {!mobile ? (
-            <button
-              type="button"
-              aria-label="Collapse sidebar"
-              className="inline-flex h-9 w-9 items-center justify-center text-base text-muted-foreground transition hover:text-foreground"
-              onClick={onCollapse}
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </button>
-          ) : null}
-          {mobile ? (
-            <button
-              type="button"
-              aria-label="Close sidebar"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-base"
-              onClick={onClose}
-            >
-              ✕
-            </button>
-          ) : null}
-        </div>
+        {mobile ? (
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-base"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        ) : null}
       </div>
 
       <button
@@ -1881,7 +1946,7 @@ function SidebarContent({
       </div>
 
       <p className="mt-6 text-xs font-semibold tracking-[0.16em] uppercase text-muted-foreground">
-        {isSearchActive ? "Search results" : "Recent"}
+        {module === "chat" && isSearchActive ? "Search results" : "Recent"}
       </p>
 
       <div
@@ -1977,63 +2042,82 @@ function SidebarContent({
           : null}
       </div>
 
-      <div className="mt-4 shrink-0 border-t border-border bg-muted/40 pt-4">
-        <div className="flex items-center justify-between gap-2">
-          <Link
-            href="/settings"
-            className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
-          <form method="post" action="/logout">
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition hover:bg-muted"
+      {mobile ? (
+        <div className="mt-4 shrink-0 border-t border-border bg-muted/40 pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
-              <LogOut className="h-4 w-4" />
-              Log out
-            </button>
-          </form>
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+            <form method="post" action="/logout">
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium transition hover:bg-muted"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </button>
+            </form>
+          </div>
+          {isRefreshing ? <p className="mt-2 text-xs text-muted-foreground">Refreshing…</p> : null}
         </div>
-        {isRefreshing ? <p className="mt-2 text-xs text-muted-foreground">Refreshing…</p> : null}
-      </div>
+      ) : null}
     </div>
   );
 }
 
-type CollapsedSidebarContentProps = {
-  onExpand: () => void;
-  onSearchAction: () => void;
-  onNewChat: () => void;
+type SidebarModuleMeta = {
+  id: SidebarModuleId;
+  label: string;
+  icon: typeof MessageSquare;
 };
 
-function CollapsedSidebarContent({
-  onExpand,
-  onSearchAction,
-  onNewChat,
-}: CollapsedSidebarContentProps) {
-  return (
-    <div className="flex h-full min-h-0 flex-col items-center gap-2 p-3">
-      <button
-        type="button"
-        aria-label="Expand sidebar"
-        className="mt-1 inline-flex h-10 w-10 items-center justify-center"
-        onClick={onExpand}
-      >
-        <WinkingLogo size={28} />
-      </button>
+const SIDEBAR_MODULES: SidebarModuleMeta[] = [
+  { id: "chat", label: "Chat", icon: MessageSquare },
+  { id: "bookmarks", label: "Bookmarks", icon: Bookmark },
+  { id: "projects", label: "Projects", icon: FolderKanban },
+  { id: "settings", label: "Settings", icon: Settings },
+];
 
-      <div className="mt-2 flex flex-col items-center gap-2">
-        <button
-          type="button"
-          aria-label="Search conversations"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background transition hover:bg-muted"
-          onClick={onSearchAction}
-          title="Search conversations"
-        >
-          <Search className="h-4 w-4" />
-        </button>
+type DesktopSidebarProps = Omit<SidebarContentProps, "module" | "mobile" | "onClose"> & {
+  activeModule: SidebarModuleId | null;
+  onModuleToggle: (module: SidebarModuleId | null) => void;
+  onSearchAction: () => void;
+};
+
+function DesktopSidebar({
+  conversations,
+  searchQuery,
+  isSearchActive,
+  isSearchLoading,
+  searchErrorMessage,
+  selectedConversationId,
+  busyByConversationId,
+  isLoading,
+  isRefreshing,
+  errorMessage,
+  listRef,
+  searchInputRef,
+  onConversationListScroll,
+  onSelectConversation,
+  onNewChat,
+  onSearchChange,
+  onRetrySearch,
+  onRetry,
+  activeModule,
+  onModuleToggle,
+  onSearchAction,
+}: DesktopSidebarProps) {
+  return (
+    <div className="flex h-full min-h-0">
+      <div className="flex w-[78px] shrink-0 flex-col items-center gap-3 border-r border-border bg-muted/55 px-3 py-3">
+        <div className="mt-1 inline-flex h-10 w-10 items-center justify-center">
+          <WinkingLogo size={28} />
+        </div>
+
         <button
           type="button"
           aria-label="New chat"
@@ -2043,14 +2127,140 @@ function CollapsedSidebarContent({
         >
           <SquarePen className="h-4 w-4" />
         </button>
-        <Link
-          href="/settings"
-          aria-label="Settings"
+
+        <button
+          type="button"
+          aria-label="Search conversations"
           className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background transition hover:bg-muted"
-          title="Settings"
+          onClick={onSearchAction}
+          title="Search conversations"
         >
-          <Settings className="h-4 w-4" />
-        </Link>
+          <Search className="h-4 w-4" />
+        </button>
+
+        <div className="mt-2 flex w-full flex-1 flex-col items-center gap-2">
+          {SIDEBAR_MODULES.map((module) => {
+            const Icon = module.icon;
+            const isActive = activeModule === module.id;
+
+            return (
+              <button
+                key={module.id}
+                type="button"
+                aria-pressed={isActive}
+                aria-label={isActive ? `Collapse ${module.label} module` : `Open ${module.label} module`}
+                className={`inline-flex min-h-[56px] w-full flex-col items-center justify-center rounded-xl border px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
+                  isActive
+                    ? "border-foreground bg-background text-foreground"
+                    : "border-border bg-background/80 text-muted-foreground hover:bg-background hover:text-foreground"
+                }`}
+                onClick={() => onModuleToggle(isActive ? null : module.id)}
+                title={module.label}
+              >
+                <Icon className="mb-1 h-4 w-4" />
+                <span>{module.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeModule === "chat" ? (
+        <div className="min-h-0 flex-1">
+          <SidebarContent
+            conversations={conversations}
+            searchQuery={searchQuery}
+            isSearchActive={isSearchActive}
+            isSearchLoading={isSearchLoading}
+            searchErrorMessage={searchErrorMessage}
+            selectedConversationId={selectedConversationId}
+            busyByConversationId={busyByConversationId}
+            isLoading={isLoading}
+            isRefreshing={isRefreshing}
+            errorMessage={errorMessage}
+            listRef={listRef}
+            searchInputRef={searchInputRef}
+            onConversationListScroll={onConversationListScroll}
+            onSelectConversation={onSelectConversation}
+            onNewChat={onNewChat}
+            onSearchChange={onSearchChange}
+            onRetrySearch={onRetrySearch}
+            onRetry={onRetry}
+            module="chat"
+          />
+        </div>
+      ) : null}
+
+      {activeModule && activeModule !== "chat" ? (
+        <div className="min-h-0 flex-1">
+          <SidebarModulePanel module={activeModule} isRefreshing={isRefreshing} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SidebarModulePanel({
+  module,
+  isRefreshing,
+}: {
+  module: Exclude<SidebarModuleId, "chat">;
+  isRefreshing: boolean;
+}) {
+  if (module === "settings") {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-2 text-sm font-semibold tracking-[0.18em] uppercase">
+            <Settings className="h-4 w-4" />
+            <span>Settings</span>
+          </div>
+          <PanelLeftClose className="h-4 w-4 text-muted-foreground" />
+        </div>
+
+        <p className="mt-4 text-sm text-muted-foreground">
+          Workspace controls and account actions live here.
+        </p>
+
+        <div className="mt-5 space-y-3">
+          <Link
+            href="/settings"
+            className="flex items-center justify-between rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium transition hover:bg-muted"
+          >
+            <span>Open settings</span>
+            <Settings className="h-4 w-4 text-muted-foreground" />
+          </Link>
+
+          <form method="post" action="/logout">
+            <button
+              type="submit"
+              className="flex w-full items-center justify-between rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium transition hover:bg-muted"
+            >
+              <span>Log out</span>
+              <LogOut className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </form>
+        </div>
+
+        {isRefreshing ? <p className="mt-4 text-xs text-muted-foreground">Refreshing…</p> : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-5">
+      <div className="inline-flex items-center gap-2 text-sm font-semibold tracking-[0.18em] uppercase">
+        {module === "bookmarks" ? <Bookmark className="h-4 w-4" /> : <FolderKanban className="h-4 w-4" />}
+        <span>{module === "bookmarks" ? "Bookmarks" : "Projects"}</span>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-dashed border-border bg-background px-4 py-4">
+        <p className="text-sm font-medium">
+          {module === "bookmarks" ? "Saved prompts and references will land here." : "Project workspaces will land here."}
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This module is scaffolded in the sidebar, but the backing feature is not wired yet.
+        </p>
       </div>
     </div>
   );
@@ -2126,7 +2336,9 @@ type MessageTimelineProps = {
   errorMessage: string | null;
   messages: ChatMessage[];
   selectedConversationId: string | null;
+  isStopping: boolean;
   onRetryFailedMessage: (messageId: string) => Promise<void>;
+  onStopStreaming: () => void;
   onRetry: () => void;
 };
 
@@ -2135,7 +2347,9 @@ function MessageTimeline({
   errorMessage,
   messages,
   selectedConversationId,
+  isStopping,
   onRetryFailedMessage,
+  onStopStreaming,
   onRetry,
 }: MessageTimelineProps) {
   if (isLoading) {
@@ -2176,6 +2390,8 @@ function MessageTimeline({
         <MessageRow
           key={message.id}
           message={message}
+          onStop={message.role === "assistant" && message.pending ? onStopStreaming : undefined}
+          stopDisabled={isStopping}
           onRetry={
             selectedConversationId && message.deliveryStatus === "failed"
               ? () => {
@@ -2375,7 +2591,17 @@ function messageAvatarFallback(message: ChatMessage): string {
   return source[0].toUpperCase();
 }
 
-function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () => void }) {
+function MessageRow({
+  message,
+  onRetry,
+  onStop,
+  stopDisabled = false,
+}: {
+  message: ChatMessage;
+  onRetry?: () => void;
+  onStop?: () => void;
+  stopDisabled?: boolean;
+}) {
   const isOwnUserMessage = message.role === "user" && message.isCurrentUserAuthor === true;
   const rowClassName = isOwnUserMessage ? "flex justify-end" : "flex justify-start";
   const cardClassName =
@@ -2386,6 +2612,7 @@ function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () =
         : "w-full max-w-[70%] rounded-2xl bg-muted/20 p-4";
   const label = messageLabel(message);
   const showAvatar = message.role === "user";
+  const showStoppedMarker = message.role === "assistant" && message.turnStatus === "stopped";
 
   return (
     <div className={rowClassName}>
@@ -2411,6 +2638,11 @@ function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () =
               {label}
               {message.pending ? " (streaming)" : message.deliveryStatus === "sending" ? " (sending)" : ""}
             </p>
+            {showStoppedMarker ? (
+              <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-red-600">
+                STOPPED
+              </span>
+            ) : null}
           </div>
           <p className="text-xs text-muted-foreground" suppressHydrationWarning>
             {formatMessageTimestamp(message.createdAt)}
@@ -2418,7 +2650,26 @@ function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () =
         </header>
         <div className="text-sm leading-6">
           <MessageMarkdown content={message.content} />
-          {message.role === "assistant" && message.pending ? <StreamingTrail /> : null}
+          {message.role === "assistant" && message.pending ? (
+            <div className="mt-1 flex items-center gap-2">
+              <StreamingTrail />
+              {onStop ? (
+                <button
+                  type="button"
+                  aria-label="Stop agent response"
+                  title="Stop"
+                  disabled={stopDisabled}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-600 transition hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60"
+                  onClick={onStop}
+                >
+                  <Octagon className="h-4 w-4 fill-current" />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {showStoppedMarker && !message.content.trim() ? (
+            <p className="mt-1 text-sm font-medium text-red-600">Generation stopped.</p>
+          ) : null}
         </div>
         {message.files && message.files.length > 0 ? (
           <div className="mt-3 rounded-md border border-border bg-background/70 p-3">

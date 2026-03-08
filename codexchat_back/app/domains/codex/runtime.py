@@ -30,6 +30,10 @@ class RuntimeTimeoutError(Exception):
     pass
 
 
+class RuntimeStoppedError(Exception):
+    pass
+
+
 @dataclass(slots=True)
 class TurnResult:
     thread_id: str
@@ -67,6 +71,7 @@ class CodexProcessRunner:
         user_id: UUID,
         request_id: str,
         on_delta: Callable[[str], Any],
+        stop_event: asyncio.Event | None = None,
     ) -> TurnResult:
         sandbox_mode_normalized = self._normalize_sandbox_mode(sandbox_mode)
         state = await self._start_process()
@@ -96,8 +101,13 @@ class CodexProcessRunner:
 
             async with asyncio.timeout(self._turn_timeout_seconds):
                 while True:
+                    if stop_event is not None and stop_event.is_set():
+                        raise RuntimeStoppedError("Codex runtime stopped by user")
+
                     message = await self._read_message(state)
                     if message is None:
+                        if stop_event is not None and stop_event.is_set():
+                            raise RuntimeStoppedError("Codex runtime stopped by user")
                         raise RuntimeExecutionError("Codex runtime closed stdout before turn completion")
 
                     if "id" in message:
@@ -154,6 +164,8 @@ class CodexProcessRunner:
                 turn_id=turn_id,
                 content=assistant_content,
             )
+        except asyncio.CancelledError as exc:
+            raise RuntimeStoppedError("Codex runtime stopped by user") from exc
         except TimeoutError as exc:
             raise RuntimeTimeoutError("Codex runtime timed out") from exc
         finally:

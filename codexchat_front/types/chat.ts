@@ -21,6 +21,8 @@ export type ChatMessage = {
   clientMessageId?: string;
   files?: ChatMessageFile[];
   pending?: boolean;
+  partial?: boolean;
+  turnStatus?: "completed" | "failed" | "timed_out" | "stopped";
   deliveryStatus?: "sending" | "failed";
 };
 
@@ -40,6 +42,8 @@ export type AssistantDoneEvent = {
   content?: string;
   message?: string;
   text?: string;
+  status?: "completed" | "failed" | "timed_out" | "stopped";
+  partial?: boolean;
 };
 
 export type MessageCreatedEvent = {
@@ -74,10 +78,11 @@ export type ChatErrorEvent = {
 };
 
 export type ConversationBusyEvent = {
-  type: "conversation_busy" | "thread_busy";
+  type: "conversation_busy" | "thread_busy" | "thread_busy_state";
   conversationId?: string;
   conversation_id?: string;
   busy?: boolean;
+  is_busy?: boolean;
 };
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";

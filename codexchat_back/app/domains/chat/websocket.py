@@ -21,6 +21,7 @@ from app.db.session import SessionLocal
 from app.domains.chat.title_summary import enqueue_title_summary_job_if_ready
 from app.domains.codex.runtime import (
     RuntimeExecutionError,
+    RuntimeStoppedError,
     RuntimeThreadResumeError,
     RuntimeTimeoutError,
     RuntimeUnavailableError,
@@ -49,7 +50,14 @@ class SendMessageEvent(BaseModel):
     client_message_id: str | None = None
 
 
-ClientEvent = ResumeEvent | SendMessageEvent
+class StopEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    type: Literal["stop"]
+    conversation_id: UUID
+
+
+ClientEvent = ResumeEvent | SendMessageEvent | StopEvent
 
 
 class ClientEventError(Exception):
@@ -65,6 +73,8 @@ class ChatWebSocketService:
         self._state_lock = asyncio.Lock()
         self._subscriptions: dict[UUID, set[WebSocket]] = defaultdict(set)
         self._socket_subscriptions: dict[WebSocket, set[UUID]] = defaultdict(set)
+        self._active_turn_tasks: dict[UUID, asyncio.Task[None]] = {}
+        self._active_turn_stop_events: dict[UUID, asyncio.Event] = {}
 
     async def handle_connection(self, websocket: WebSocket, *, user: User) -> None:
         request_id = websocket.headers.get("x-request-id") or str(uuid4())
@@ -97,6 +107,10 @@ class ChatWebSocketService:
 
                 if isinstance(event, ResumeEvent):
                     await self._handle_resume(websocket, event=event)
+                    continue
+
+                if isinstance(event, StopEvent):
+                    await self._handle_stop(websocket, user=user, event=event)
                     continue
 
                 await self._handle_send_message(
@@ -177,6 +191,42 @@ class ChatWebSocketService:
                 },
             )
 
+    async def _handle_stop(self, websocket: WebSocket, *, user: User, event: StopEvent) -> None:
+        conversation_id = event.conversation_id
+        with SessionLocal() as db:
+            conversation = get_conversation(db, conversation_id, include_archived=False)
+            if conversation is None:
+                await self._send_error(
+                    websocket,
+                    code="NOT_FOUND",
+                    message="Conversation not found",
+                    details={"conversation_id": str(conversation_id)},
+                )
+                return
+
+            state = conversation_lock_service.get_state(db, conversation_id=conversation_id)
+
+        await self._subscribe_socket_to_conversation(websocket, conversation_id)
+
+        if not state.is_busy or state.locked_by != user.id:
+            await self._send_error(
+                websocket,
+                code="STOP_NOT_ALLOWED",
+                message="No active turn for this conversation can be stopped",
+                details={
+                    "conversation_id": str(conversation_id),
+                    "busy": state.is_busy,
+                },
+            )
+            return
+
+        task = self._active_turn_tasks.get(conversation_id)
+        stop_event = self._active_turn_stop_events.get(conversation_id)
+        if stop_event is not None:
+            stop_event.set()
+        if task is not None and not task.done():
+            task.cancel()
+
     async def _handle_send_message(
         self,
         websocket: WebSocket,
@@ -238,7 +288,8 @@ class ChatWebSocketService:
             return
 
         await self._broadcast_thread_busy_state(conversation_id, state=acquire_result.state)
-        asyncio.create_task(
+        stop_event = asyncio.Event()
+        task = asyncio.create_task(
             self._run_turn(
                 conversation_id=conversation_id,
                 user=user,
@@ -247,8 +298,11 @@ class ChatWebSocketService:
                 file_ids=event.file_ids,
                 client_message_id=event.client_message_id,
                 owner_token=owner_token,
+                stop_event=stop_event,
             )
         )
+        self._active_turn_tasks[conversation_id] = task
+        self._active_turn_stop_events[conversation_id] = stop_event
 
     async def _run_turn(
         self,
@@ -260,6 +314,7 @@ class ChatWebSocketService:
         file_ids: list[UUID],
         client_message_id: str | None,
         owner_token: str,
+        stop_event: asyncio.Event,
     ) -> None:
         assistant_content = ""
         thread_id: str | None = None
@@ -385,6 +440,7 @@ class ChatWebSocketService:
                         },
                     )
                 ),
+                stop_event=stop_event,
             )
             assistant_content = turn_result.content
             thread_id = turn_result.thread_id
@@ -486,6 +542,16 @@ class ChatWebSocketService:
                 message=str(exc),
             )
             return
+        except RuntimeStoppedError:
+            await self._persist_stop_result(
+                conversation_id=conversation_id,
+                user_id=user.id,
+                request_id=request_id,
+                content=assistant_content,
+                thread_id=thread_id,
+                turn_id=turn_id,
+            )
+            return
         except RuntimeThreadResumeError:
             await self._broadcast_error(
                 conversation_id,
@@ -535,6 +601,8 @@ class ChatWebSocketService:
         finally:
             heartbeat_stop.set()
             await heartbeat_task
+            self._active_turn_tasks.pop(conversation_id, None)
+            self._active_turn_stop_events.pop(conversation_id, None)
             with SessionLocal() as db:
                 conversation_lock_service.release(
                     db,
@@ -603,6 +671,62 @@ class ChatWebSocketService:
                     **_assistant_author_fields(),
                 },
             )
+
+    async def _persist_stop_result(
+        self,
+        *,
+        conversation_id: UUID,
+        user_id: UUID,
+        request_id: str,
+        content: str,
+        thread_id: str | None,
+        turn_id: str | None,
+    ) -> None:
+        partial = _is_meaningful_content(content)
+
+        with SessionLocal() as db:
+            conversation = get_conversation(db, conversation_id, include_archived=False)
+            if conversation is None:
+                return
+
+            if thread_id and conversation.codex_thread_id and conversation.codex_thread_id != thread_id:
+                return
+            if thread_id and conversation.codex_thread_id is None:
+                conversation.codex_thread_id = thread_id
+
+            assistant_message = Message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=content,
+                metadata_json={
+                    "partial": partial,
+                    "turn_status": "stopped",
+                    "request_id": request_id,
+                    "user_id": str(user_id),
+                    "thread_id": thread_id,
+                    "turn_id": turn_id,
+                    "runtime": "codex_app_server_stdio",
+                    "error_code": "STOPPED",
+                    "error_message": "Codex runtime stopped by user",
+                    "saved_at": datetime.now(tz=UTC).isoformat(),
+                },
+            )
+            db.add(assistant_message)
+            db.commit()
+            db.refresh(assistant_message)
+
+        await self._broadcast_to_conversation(
+            conversation_id,
+            {
+                "type": "assistant_done",
+                "conversation_id": str(conversation_id),
+                "message_id": str(assistant_message.id),
+                "content": content,
+                "status": "stopped",
+                "partial": partial,
+                **_assistant_author_fields(),
+            },
+        )
 
     async def _send_error(
         self,
@@ -790,6 +914,8 @@ def _parse_client_event(payload_text: str) -> ClientEvent:
             return ResumeEvent.model_validate(normalized)
         if event_type == "send_message":
             return SendMessageEvent.model_validate(normalized)
+        if event_type == "stop":
+            return StopEvent.model_validate(normalized)
     except ValidationError as exc:
         raise ClientEventError(
             code="VALIDATION_ERROR",
@@ -800,7 +926,7 @@ def _parse_client_event(payload_text: str) -> ClientEvent:
     raise ClientEventError(
         code="BAD_EVENT_TYPE",
         message="Unsupported websocket event type",
-        details={"allowed_types": ["send_message", "resume"]},
+        details={"allowed_types": ["send_message", "resume", "stop"]},
     )
 
 
