@@ -4,6 +4,9 @@ RUN apk add --no-cache libc6-compat
 COPY package*.json ./
 RUN npm ci --prefer-offline --no-audit --no-fund
 
+FROM deps AS devrunner
+CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+
 FROM node:22-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
