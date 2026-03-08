@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -15,7 +16,7 @@ from app.db.archive_queries import (
     list_messages_for_conversation,
     search_conversations,
 )
-from app.db.models import Conversation, File, Message, Settings, User
+from app.db.models import Conversation, File, Message, MessageBookmark, Settings, User
 from app.db.session import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.domains.chat.title_summary import DEFAULT_CONVERSATION_TITLE
@@ -42,6 +43,8 @@ class MessageResponse(BaseModel):
     id: str
     role: str
     content: str
+    is_bookmarked: bool = False
+    is_bookmarked_by_current_user: bool = False
     author_user_id: str | None = None
     author_display_name: str | None = None
     author_profile_picture_url: str | None = None
@@ -181,6 +184,8 @@ def _message_to_response(
     *,
     attached_files: list[File],
     current_user: User | None,
+    bookmarked_message_ids: set[UUID],
+    current_user_bookmarked_message_ids: set[UUID],
 ) -> MessageResponse:
     author_user_id, author_display_name, author_profile_picture_url, is_current_user_author = (
         _message_author_identity(message, current_user=current_user)
@@ -190,6 +195,8 @@ def _message_to_response(
         id=str(message.id),
         role=message.role,
         content=message.content,
+        is_bookmarked=message.id in bookmarked_message_ids,
+        is_bookmarked_by_current_user=message.id in current_user_bookmarked_message_ids,
         author_user_id=author_user_id,
         author_display_name=author_display_name,
         author_profile_picture_url=author_profile_picture_url,
@@ -325,6 +332,23 @@ def get_conversation_detail(
         conversation_id,
         include_archived=include_archived,
     )
+    bookmarked_message_ids = {
+        message_id
+        for message_id in db.execute(
+            select(MessageBookmark.message_id).where(
+                MessageBookmark.conversation_id == conversation_id,
+            )
+        ).scalars()
+    }
+    current_user_bookmarked_message_ids = {
+        message_id
+        for message_id in db.execute(
+            select(MessageBookmark.message_id).where(
+                MessageBookmark.user_id == current_user.id,
+                MessageBookmark.conversation_id == conversation_id,
+            )
+        ).scalars()
+    }
     file_map = list_message_files_for_conversation(
         db,
         conversation_id,
@@ -338,6 +362,8 @@ def get_conversation_detail(
                 message,
                 attached_files=file_map.get(message.id, []),
                 current_user=current_user,
+                bookmarked_message_ids=bookmarked_message_ids,
+                current_user_bookmarked_message_ids=current_user_bookmarked_message_ids,
             )
             for message in messages
         ],

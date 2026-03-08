@@ -123,6 +123,40 @@ class Message(Base):
     )
 
 
+class MessageBookmark(Base):
+    __tablename__ = "message_bookmarks"
+    __table_args__ = (
+        UniqueConstraint("user_id", "message_id", name="uq_message_bookmarks_user_message"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    message_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+
+
 class File(Base):
     __tablename__ = "files"
     __table_args__ = (

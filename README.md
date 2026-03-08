@@ -34,6 +34,7 @@ Privacy notice:
 Deploy once, then use it from desktop or phone:
 - start new chats
 - resume previous chats
+- bookmark assistant responses for later
 - upload files, preview images inline, and open attachments in a new tab
 - optionally run scheduled heartbeat instructions
 
@@ -207,9 +208,10 @@ Use a full production rebuild when you change frontend dependencies or want the 
    - other users' messages: sender name (or profile picture initials), left-aligned
    - assistant messages remain full-width and unlabeled by user identity
 7. Reopen old conversations from sidebar/drawer.
-8. Upload files into chat and download generated/shared files.
-9. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
-10. After the first 2 exchanges, the app generates a clearer chat title and short sidebar summary in the background.
+8. Bookmark helpful assistant messages and revisit them from the dedicated Bookmarks view, filtered to either your own saves or all user saves.
+9. Upload files into chat and download generated/shared files.
+10. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
+11. After the first 2 exchanges, the app generates a clearer chat title and short sidebar summary in the background.
 
 Codex integration model:
 - This app uses the existing Codex installation/auth on your VPS.

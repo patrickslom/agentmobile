@@ -28,6 +28,7 @@ logger = logging.getLogger("app.api")
 OPENAPI_TAGS = [
     {"name": "auth", "description": "Authentication and session lifecycle."},
     {"name": "chat", "description": "Conversation and message APIs."},
+    {"name": "bookmarks", "description": "User-scoped assistant message bookmarks."},
     {"name": "codex", "description": "Codex runtime bridge operations."},
     {"name": "files", "description": "Conversation file upload and download."},
     {"name": "heartbeat", "description": "Heartbeat job scheduling and run logs."},

@@ -13,6 +13,8 @@ export type ChatMessage = {
   id: string;
   role: ChatRole;
   content: string;
+  isBookmarked?: boolean;
+  isBookmarkedByCurrentUser?: boolean;
   authorUserId?: string;
   authorDisplayName?: string;
   authorProfilePictureUrl?: string;

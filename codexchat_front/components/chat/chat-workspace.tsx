@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Bookmark,
   LogOut,
   Menu,
   Octagon,
@@ -15,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import WinkingLogo from "@/app/components/winking-logo";
+import ToastStack, { type ToastItem } from "@/components/ui/toast-stack";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
 import { getApiBaseUrl, getWebSocketUrl } from "@/lib/network-config";
 import MessageMarkdown from "@/components/chat/message-markdown";
@@ -44,6 +46,9 @@ type ApiConversationMessage = {
   id?: string;
   role?: string;
   content?: string;
+  is_bookmarked?: boolean;
+  is_bookmarked_by_current_user?: boolean;
+  isBookmarked?: boolean;
   created_at?: string;
   createdAt?: string;
   files?: unknown;
@@ -251,6 +256,32 @@ function normalizeBooleanField(value: unknown): boolean | undefined {
   return undefined;
 }
 
+function parseErrorMessage(raw: unknown, fallback: string): string {
+  if (!raw || typeof raw !== "object") {
+    return fallback;
+  }
+
+  const payload = raw as {
+    error?: {
+      message?: string;
+    };
+    message?: string;
+  };
+  const message = payload.error?.message ?? payload.message;
+  if (typeof message !== "string" || !message.trim()) {
+    return fallback;
+  }
+
+  return message;
+}
+
+function createToastId(prefix: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+}
+
 function normalizeAuthorDisplayName(value: unknown): string {
   const normalized = normalizeStringField(value);
   if (!normalized) {
@@ -276,6 +307,8 @@ function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
     id: item.id,
     role,
     content: typeof item.content === "string" ? item.content : "",
+    isBookmarked: normalizeBooleanField(item.is_bookmarked ?? item.isBookmarked) ?? false,
+    isBookmarkedByCurrentUser: normalizeBooleanField(item.is_bookmarked_by_current_user) ?? false,
     clientMessageId: normalizeStringField(item.client_message_id),
     authorUserId: normalizeStringField(item.author_user_id),
     authorDisplayName: normalizeAuthorDisplayName(item.author_display_name),
@@ -577,6 +610,7 @@ export default function ChatWorkspace() {
   const searchParams = useSearchParams();
 
   const selectedFromQuery = searchParams.get("conversationId");
+  const selectedBookmarkMessageId = searchParams.get("messageId");
 
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -609,6 +643,8 @@ export default function ChatWorkspace() {
   const [composerBottomOffset, setComposerBottomOffset] = useState(0);
   const [introQuote, setIntroQuote] = useState("What are we building today?");
   const [hasMounted, setHasMounted] = useState(false);
+  const [bookmarkPendingByMessageId, setBookmarkPendingByMessageId] = useState<Record<string, boolean>>({});
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -927,6 +963,88 @@ export default function ChatWorkspace() {
     setDrawerOpen(false);
     router.push("/chat");
   }, [router]);
+
+  const pushToast = useCallback((tone: ToastItem["tone"], title: string, description?: string) => {
+    const id = createToastId("chat-toast");
+    setToasts((previous) => [...previous, { id, tone, title, description }]);
+    window.setTimeout(() => {
+      setToasts((previous) => previous.filter((toast) => toast.id !== id));
+    }, 4000);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((previous) => previous.filter((toast) => toast.id !== id));
+  }, []);
+
+  const toggleBookmark = useCallback(
+    async (message: ChatMessage) => {
+      if (message.role !== "assistant" || message.pending) {
+        return;
+      }
+
+      const isBookmarkedByCurrentUser = Boolean(message.isBookmarkedByCurrentUser);
+      setBookmarkPendingByMessageId((previous) => ({
+        ...previous,
+        [message.id]: true,
+      }));
+
+      try {
+        const response = await fetch(
+          isBookmarkedByCurrentUser
+            ? `${apiBaseUrl}/bookmarks/${encodeURIComponent(message.id)}`
+            : `${apiBaseUrl}/bookmarks`,
+          {
+            method: isBookmarkedByCurrentUser ? "DELETE" : "POST",
+            credentials: "include",
+            cache: "no-store",
+            headers: isBookmarkedByCurrentUser
+              ? withCsrfHeader()
+              : withCsrfHeader({ "content-type": "application/json" }),
+            body: isBookmarkedByCurrentUser ? undefined : JSON.stringify({ message_id: message.id }),
+          },
+        );
+
+        if (isAuthFailureStatus(response.status)) {
+          router.replace("/login");
+          return;
+        }
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as unknown;
+          throw new Error(parseErrorMessage(payload, `Bookmark request failed (${response.status})`));
+        }
+
+        setMessagesByConversationId((previous) =>
+          Object.fromEntries(
+            Object.entries(previous).map(([conversationId, messages]) => [
+              conversationId,
+              messages.map((entry) =>
+                entry.id === message.id
+                  ? {
+                      ...entry,
+                      isBookmarked: isBookmarkedByCurrentUser ? false : true,
+                      isBookmarkedByCurrentUser: !isBookmarkedByCurrentUser,
+                    }
+                  : entry,
+              ),
+            ]),
+          ),
+        );
+      } catch (error) {
+        pushToast(
+          "error",
+          isBookmarkedByCurrentUser ? "Unable to remove bookmark" : "Unable to save bookmark",
+          error instanceof Error && error.message ? error.message : undefined,
+        );
+      } finally {
+        setBookmarkPendingByMessageId((previous) => ({
+          ...previous,
+          [message.id]: false,
+        }));
+      }
+    },
+    [apiBaseUrl, pushToast, router],
+  );
 
   const onPickAttachments = useCallback((pickedFiles: FileList | null) => {
     if (!pickedFiles || pickedFiles.length === 0) {
@@ -1693,6 +1811,21 @@ export default function ChatWorkspace() {
     });
   }, [selectedConversationId, selectedTimelineMessages, timelineLoading]);
 
+  useEffect(() => {
+    if (!selectedConversationId || !selectedBookmarkMessageId || timelineLoading) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      const target = document.getElementById(`message-${selectedBookmarkMessageId}`);
+      target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [selectedBookmarkMessageId, selectedConversationId, selectedTimelineMessages, timelineLoading]);
+
   const onSearchAction = useCallback(() => {
     if (isSidebarCollapsed) {
       setSidebarCollapsed(false);
@@ -1708,6 +1841,7 @@ export default function ChatWorkspace() {
         isSidebarCollapsed ? "md:grid-cols-[78px_1fr]" : "md:grid-cols-[320px_1fr]"
       }`}
     >
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <aside className="hidden border-r border-border bg-muted/40 md:sticky md:top-0 md:flex md:h-screen md:flex-col">
         {isSidebarCollapsed ? (
           <CollapsedSidebarContent
@@ -1820,7 +1954,10 @@ export default function ChatWorkspace() {
               errorMessage={timelineError}
               messages={selectedTimelineMessages}
               selectedConversationId={selectedConversationId}
+              highlightedMessageId={selectedBookmarkMessageId}
               isStopping={selectedConversationId ? Boolean(stoppingByConversationId[selectedConversationId]) : false}
+              bookmarkPendingByMessageId={bookmarkPendingByMessageId}
+              onToggleBookmark={toggleBookmark}
               onRetryFailedMessage={onRetryFailedMessage}
               onStopStreaming={onStopStreaming}
               onRetry={() => selectedConversationId ? void loadConversationMessages(selectedConversationId) : undefined}
@@ -1921,6 +2058,23 @@ function SidebarContent({
       >
         + New chat
       </button>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Link
+          href="/bookmarks"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:bg-muted"
+        >
+          <Bookmark className="h-4 w-4" />
+          Bookmarks
+        </Link>
+        <Link
+          href="/settings"
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:bg-muted"
+        >
+          <Settings className="h-4 w-4" />
+          Settings
+        </Link>
+      </div>
 
       <div className="mt-4">
         <label htmlFor="conversation-search" className="sr-only">
@@ -2038,6 +2192,13 @@ function SidebarContent({
         <div className="mt-4 shrink-0 border-t border-border bg-muted/40 pt-4">
           <div className="flex items-center justify-between gap-2">
             <Link
+              href="/bookmarks"
+              className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <Bookmark className="h-4 w-4" />
+              Bookmarks
+            </Link>
+            <Link
               href="/settings"
               className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
@@ -2093,6 +2254,15 @@ function CollapsedSidebarContent({
         >
           <SquarePen className="h-4 w-4" />
         </button>
+
+        <Link
+          href="/bookmarks"
+          aria-label="Bookmarks"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-background transition hover:bg-muted"
+          title="Bookmarks"
+        >
+          <Bookmark className="h-4 w-4" />
+        </Link>
 
         <button
           type="button"
@@ -2186,7 +2356,10 @@ type MessageTimelineProps = {
   errorMessage: string | null;
   messages: ChatMessage[];
   selectedConversationId: string | null;
+  highlightedMessageId: string | null;
   isStopping: boolean;
+  bookmarkPendingByMessageId: Record<string, boolean>;
+  onToggleBookmark: (message: ChatMessage) => Promise<void>;
   onRetryFailedMessage: (messageId: string) => Promise<void>;
   onStopStreaming: () => void;
   onRetry: () => void;
@@ -2197,7 +2370,10 @@ function MessageTimeline({
   errorMessage,
   messages,
   selectedConversationId,
+  highlightedMessageId,
   isStopping,
+  bookmarkPendingByMessageId,
+  onToggleBookmark,
   onRetryFailedMessage,
   onStopStreaming,
   onRetry,
@@ -2240,6 +2416,15 @@ function MessageTimeline({
         <MessageRow
           key={message.id}
           message={message}
+          highlighted={message.id === highlightedMessageId}
+          bookmarkPending={Boolean(bookmarkPendingByMessageId[message.id])}
+          onToggleBookmark={
+            message.role === "assistant"
+              ? () => {
+                  void onToggleBookmark(message);
+                }
+              : undefined
+          }
           onStop={message.role === "assistant" && message.pending ? onStopStreaming : undefined}
           stopDisabled={isStopping}
           onRetry={
@@ -2443,11 +2628,17 @@ function messageAvatarFallback(message: ChatMessage): string {
 
 function MessageRow({
   message,
+  highlighted = false,
+  bookmarkPending = false,
+  onToggleBookmark,
   onRetry,
   onStop,
   stopDisabled = false,
 }: {
   message: ChatMessage;
+  highlighted?: boolean;
+  bookmarkPending?: boolean;
+  onToggleBookmark?: () => void;
   onRetry?: () => void;
   onStop?: () => void;
   stopDisabled?: boolean;
@@ -2456,17 +2647,17 @@ function MessageRow({
   const rowClassName = isOwnUserMessage ? "flex justify-end" : "flex justify-start";
   const cardClassName =
     message.role === "assistant"
-      ? "w-full rounded-xl border border-border bg-background p-4"
+      ? `w-full rounded-xl border bg-background p-4 ${highlighted ? "border-foreground shadow-[0_0_0_2px_rgba(24,24,27,0.08)]" : "border-border"}`
       : message.role === "system"
-        ? "w-full rounded-xl border border-border bg-muted/60 p-4"
-        : "w-full max-w-[70%] rounded-2xl bg-muted/20 p-4";
+        ? `w-full rounded-xl border bg-muted/60 p-4 ${highlighted ? "border-foreground" : "border-border"}`
+        : `w-full max-w-[70%] rounded-2xl bg-muted/20 p-4 ${highlighted ? "ring-1 ring-foreground/20" : ""}`;
   const label = messageLabel(message);
   const showAvatar = message.role === "user";
   const showStoppedMarker = message.role === "assistant" && message.turnStatus === "stopped";
 
   return (
     <div className={rowClassName}>
-      <article className={cardClassName}>
+      <article id={`message-${message.id}`} className={cardClassName}>
         <header className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {showAvatar ? (
@@ -2494,9 +2685,25 @@ function MessageRow({
               </span>
             ) : null}
           </div>
-          <p className="text-xs text-muted-foreground" suppressHydrationWarning>
-            {formatMessageTimestamp(message.createdAt)}
-          </p>
+          <div className="flex items-center gap-2">
+            {message.role === "assistant" && !message.pending ? (
+              <button
+                type="button"
+                aria-label={message.isBookmarkedByCurrentUser ? "Remove my bookmark" : "Save my bookmark"}
+                title={message.isBookmarkedByCurrentUser ? "Remove my bookmark" : "Save my bookmark"}
+                disabled={bookmarkPending}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+                onClick={onToggleBookmark}
+              >
+                <Bookmark
+                  className={`h-4 w-4 ${message.isBookmarked ? "fill-current text-foreground" : ""}`}
+                />
+              </button>
+            ) : null}
+            <p className="text-xs text-muted-foreground" suppressHydrationWarning>
+              {formatMessageTimestamp(message.createdAt)}
+            </p>
+          </div>
         </header>
         <div className="text-sm leading-6">
           <MessageMarkdown content={message.content} />

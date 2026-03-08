@@ -1,5 +1,9 @@
 # Repository Agent Notes
 
+## Required Reading
+
+Agents must read `docs/RULES.md` before starting work in this repository.
+
 ## Frontend Rebuild Rule
 
 This repo supports two frontend rebuild paths when editing directly on the production host.

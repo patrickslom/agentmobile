@@ -48,3 +48,8 @@ Constraints:
 - Bookmark folders/tags.
 - Search within bookmarked responses.
 - "Add to project memory" action from bookmark detail.
+
+## FUTURE
+- Add two bookmark sections:
+- `Mine` for personal bookmarks visible only to the current user.
+- `Shared` for bookmarks intentionally shared across users in the same deployment.

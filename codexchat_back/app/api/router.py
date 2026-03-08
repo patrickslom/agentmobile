@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from app.domains.admin.router import router as admin_router
 from app.domains.auth.dependencies import get_current_user
 from app.domains.auth.router import router as auth_router
+from app.domains.bookmarks.router import router as bookmarks_router
 from app.domains.chat.router import router as chat_router
 from app.domains.codex.router import router as codex_router
 from app.domains.files.router import router as files_router
@@ -14,6 +15,7 @@ from app.db.models import User
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(chat_router)
+api_router.include_router(bookmarks_router)
 api_router.include_router(codex_router)
 api_router.include_router(files_router)
 api_router.include_router(heartbeat_router)

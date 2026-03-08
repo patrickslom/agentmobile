@@ -3,6 +3,7 @@
 ## Documentation Rules
 - This project is open source and intended for public use once complete; current work is still in-progress development.
 - Any new `.md` file added to this directory must also be added to `INDEX.md` with a short summary.
+- If you add a markdown file anywhere under `docs/`, update `docs/INDEX.md` in the same change before the work is considered complete.
 - If an existing `.md` file is renamed or removed, `INDEX.md` must be updated in the same change.
 - Product behavior changes must update both `README.md` (user-facing) and `docs/codexchatmvp.md` (spec-facing).
 - `README.md` must be written as production/public-facing documentation for the completed project and should not be used to track current in-progress development status.
@@ -15,6 +16,7 @@
 - Ask the user 3 short questions before implementing each task.
 - After each completed task: validate, mark TODO complete, commit only files modified in this run, push to `master`, rebuild containers, smoke check, then stop.
 - Commit/push rule: write context-rich commit messages that clearly describe what changed, why, and major files affected. Stage only files you modified for the selected task unless the user explicitly requests a broader commit.
+- Any time a change is committed or pushed to `master`, update `docs/CHANGELOG.md` in the same run to record the change.
 
 ## Safety and Deployment Rules
 - Never mark a task complete if push or deploy fails.

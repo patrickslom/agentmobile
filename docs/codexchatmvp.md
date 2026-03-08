@@ -39,6 +39,7 @@ Minimum safety expectations:
   - Start new conversation
   - See past conversations
   - Resume an existing conversation (continue context)
+  - Bookmark assistant messages per user and reopen them from a dedicated bookmarks view with `Mine` and `All` filters
   - Shared visibility model: all users on the VPS can view shared conversation history/files
   - Shared conversations preserve message authorship: user messages show `YOU` for the sender, peer names/avatars for others, and assistant messages remain full-width cards
   - Concurrency safety: only one active Codex run per conversation/thread at a time
@@ -216,6 +217,8 @@ Later:
   - id, user_id, title, summary_short, codex_thread_id, title_generated_at, summary_generated_at, created_at, updated_at
 - `messages`
   - id, conversation_id, user_id (nullable), role (`user|assistant|system`), content (text/json), created_at, metadata_json (author snapshot fields for user messages)
+- `message_bookmarks`
+  - id, user_id, message_id, conversation_id, note, created_at
 - `files`
   - id, user_id, conversation_id, original_name, storage_path, mime_type, size_bytes, created_at
 - `message_files`
@@ -250,6 +253,9 @@ Later:
 - `POST /conversations` (new chat)
 - `GET /conversations/:id`
 - `POST /conversations/:id/title` (optional)
+- `GET /bookmarks`
+- `POST /bookmarks`
+- `DELETE /bookmarks/:message_id`
 - `GET /conversations/search?q=...` (MVP+)
 - `POST /conversations/:id/files` (upload attachment)
 - `GET /files/:id` (authorized file open/download; serves inline when browser-supported)
