@@ -183,9 +183,13 @@ One-liner bootstrap installer:
 3. Click `New chat` to start a conversation.
 4. Optionally attach files; app stores them in the managed files directory.
 5. Send message and stream Codex responses (attached file paths are sent with the message and shown in chat).
-6. Reopen old conversations from sidebar/drawer.
-7. Upload files into chat and download generated/shared files.
-8. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
+6. In shared conversations, human messages show sender identity:
+   - your messages: `YOU`, right-aligned
+   - other users' messages: sender name (or profile picture initials), left-aligned
+   - assistant messages remain full-width and unlabeled by user identity
+7. Reopen old conversations from sidebar/drawer.
+8. Upload files into chat and download generated/shared files.
+9. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
 
 Codex integration model:
 - This app uses the existing Codex installation/auth on your VPS.

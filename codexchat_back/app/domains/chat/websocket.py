@@ -45,6 +45,7 @@ class SendMessageEvent(BaseModel):
     conversation_id: UUID
     content: str
     file_ids: list[UUID] = Field(default_factory=list)
+    client_message_id: str | None = None
 
 
 ClientEvent = ResumeEvent | SendMessageEvent
@@ -171,6 +172,7 @@ class ChatWebSocketService:
                     "content": latest_assistant_message.content,
                     "status": latest_assistant_message.metadata_json.get("turn_status", "completed"),
                     "partial": bool(latest_assistant_message.metadata_json.get("partial", False)),
+                    **_assistant_author_fields(),
                 },
             )
 
@@ -238,10 +240,11 @@ class ChatWebSocketService:
         asyncio.create_task(
             self._run_turn(
                 conversation_id=conversation_id,
-                user_id=user.id,
+                user=user,
                 request_id=request_id,
                 content=content,
                 file_ids=event.file_ids,
+                client_message_id=event.client_message_id,
                 owner_token=owner_token,
             )
         )
@@ -250,10 +253,11 @@ class ChatWebSocketService:
         self,
         *,
         conversation_id: UUID,
-        user_id: UUID,
+        user: User,
         request_id: str,
         content: str,
         file_ids: list[UUID],
+        client_message_id: str | None,
         owner_token: str,
     ) -> None:
         assistant_content = ""
@@ -290,15 +294,22 @@ class ChatWebSocketService:
                     conversation_id=conversation_id,
                     role="user",
                     content=content,
+                    user_id=user.id,
                     metadata_json={
                         "source": "websocket",
                         "request_id": request_id,
-                        "user_id": str(user_id),
+                        "client_message_id": client_message_id,
+                        **_user_author_metadata(user),
                     },
                 )
                 db.add(user_message)
                 db.commit()
                 db.refresh(user_message)
+
+                user_message_id = str(user_message.id)
+                user_message_role = user_message.role
+                user_message_content = user_message.content
+                user_message_created_at = user_message.created_at.isoformat()
 
                 attached_files = assign_files_to_message(
                     db,
@@ -335,13 +346,33 @@ class ChatWebSocketService:
                     message_file_paths.append(str(resolved_path))
                 db.commit()
 
+            await self._broadcast_to_conversation(
+                conversation_id,
+                {
+                    "type": "message_created",
+                    "conversation_id": str(conversation_id),
+                    "message": {
+                        "id": user_message_id,
+                        "role": user_message_role,
+                        "content": user_message_content,
+                        "author_user_id": str(user.id),
+                        "author_display_name": user.display_name,
+                        "author_profile_picture_url": user.profile_picture_url,
+                        "is_current_user_author": None,
+                        "created_at": user_message_created_at,
+                        "files": attached_refs,
+                        "client_message_id": client_message_id,
+                    },
+                },
+            )
+
             prompt = _build_prompt_with_files(content=content, file_paths=message_file_paths)
             turn_result = await codex_process_runner.run_turn(
                 prompt=prompt,
                 existing_thread_id=thread_id,
                 sandbox_mode=sandbox_mode,
                 conversation_id=conversation_id,
-                user_id=user_id,
+                user_id=user.id,
                 request_id=request_id,
                 on_delta=lambda delta: asyncio.create_task(
                     self._broadcast_to_conversation(
@@ -378,7 +409,7 @@ class ChatWebSocketService:
                         "partial": False,
                         "turn_status": "completed",
                         "request_id": request_id,
-                        "user_id": str(user_id),
+                        "user_id": str(user.id),
                         "thread_id": thread_id,
                         "turn_id": turn_id,
                         "runtime": "codex_app_server_stdio",
@@ -397,6 +428,7 @@ class ChatWebSocketService:
                     "content": assistant_content,
                     "status": "completed",
                     "partial": False,
+                    **_assistant_author_fields(),
                 },
             )
         except AppError as exc:
@@ -418,7 +450,7 @@ class ChatWebSocketService:
         except RuntimeTimeoutError:
             await self._persist_partial_if_meaningful(
                 conversation_id=conversation_id,
-                user_id=user_id,
+                user_id=user.id,
                 request_id=request_id,
                 content=assistant_content,
                 thread_id=thread_id,
@@ -436,7 +468,7 @@ class ChatWebSocketService:
         except RuntimeUnavailableError as exc:
             await self._persist_partial_if_meaningful(
                 conversation_id=conversation_id,
-                user_id=user_id,
+                user_id=user.id,
                 request_id=request_id,
                 content=assistant_content,
                 thread_id=thread_id,
@@ -461,7 +493,7 @@ class ChatWebSocketService:
         except RuntimeExecutionError as exc:
             await self._persist_partial_if_meaningful(
                 conversation_id=conversation_id,
-                user_id=user_id,
+                user_id=user.id,
                 request_id=request_id,
                 content=assistant_content,
                 thread_id=thread_id,
@@ -479,11 +511,11 @@ class ChatWebSocketService:
         except Exception:
             logger.exception(
                 "websocket_turn_runtime_failure",
-                extra={"event_data": {"conversation_id": str(conversation_id), "user_id": str(user_id)}},
+                extra={"event_data": {"conversation_id": str(conversation_id), "user_id": str(user.id)}},
             )
             await self._persist_partial_if_meaningful(
                 conversation_id=conversation_id,
-                user_id=user_id,
+                user_id=user.id,
                 request_id=request_id,
                 content=assistant_content,
                 thread_id=thread_id,
@@ -558,15 +590,16 @@ class ChatWebSocketService:
 
         await self._broadcast_to_conversation(
             conversation_id,
-            {
-                "type": "assistant_done",
-                "conversation_id": str(conversation_id),
-                "message_id": str(assistant_message.id),
-                "content": content,
-                "status": status,
-                "partial": True,
-            },
-        )
+                {
+                    "type": "assistant_done",
+                    "conversation_id": str(conversation_id),
+                    "message_id": str(assistant_message.id),
+                    "content": content,
+                    "status": status,
+                    "partial": True,
+                    **_assistant_author_fields(),
+                },
+            )
 
     async def _send_error(
         self,
@@ -696,7 +729,29 @@ def _normalize_client_payload(raw_payload: dict[str, object]) -> dict[str, objec
         normalized["conversation_id"] = normalized["conversationId"]
     if "file_ids" not in normalized and "fileIds" in normalized:
         normalized["file_ids"] = normalized["fileIds"]
+    if "client_message_id" not in normalized and "clientMessageId" in normalized:
+        normalized["client_message_id"] = normalized["clientMessageId"]
     return normalized
+
+
+def _user_author_metadata(user: User) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "user_id": str(user.id),
+        "author_user_id": str(user.id),
+        "author_display_name": user.display_name,
+    }
+    if user.profile_picture_url:
+        metadata["author_profile_picture_url"] = user.profile_picture_url
+    return metadata
+
+
+def _assistant_author_fields() -> dict[str, object | None]:
+    return {
+        "author_user_id": None,
+        "author_display_name": "Assistant",
+        "author_profile_picture_url": None,
+        "is_current_user_author": None,
+    }
 
 
 def _build_prompt_with_files(*, content: str, file_paths: list[str]) -> str:

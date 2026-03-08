@@ -13,7 +13,12 @@ export type ChatMessage = {
   id: string;
   role: ChatRole;
   content: string;
+  authorUserId?: string;
+  authorDisplayName?: string;
+  authorProfilePictureUrl?: string;
+  isCurrentUserAuthor?: boolean;
   createdAt: string;
+  clientMessageId?: string;
   files?: ChatMessageFile[];
   pending?: boolean;
   deliveryStatus?: "sending" | "failed";
@@ -31,9 +36,28 @@ export type AssistantDoneEvent = {
   type: "assistant_done";
   conversationId?: string;
   conversation_id?: string;
+  message_id?: string;
   content?: string;
   message?: string;
   text?: string;
+};
+
+export type MessageCreatedEvent = {
+  type: "message_created";
+  conversationId?: string;
+  conversation_id?: string;
+  message?: {
+    id?: string;
+    role?: string;
+    content?: string;
+    author_user_id?: string | null;
+    author_display_name?: string | null;
+    author_profile_picture_url?: string | null;
+    is_current_user_author?: boolean | null;
+    created_at?: string;
+    client_message_id?: string | null;
+    files?: unknown;
+  };
 };
 
 export type ChatErrorEvent = {

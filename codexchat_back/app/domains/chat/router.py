@@ -42,6 +42,10 @@ class MessageResponse(BaseModel):
     id: str
     role: str
     content: str
+    author_user_id: str | None = None
+    author_display_name: str | None = None
+    author_profile_picture_url: str | None = None
+    is_current_user_author: bool | None = None
     metadata_json: dict[str, object]
     files: list["MessageFileResponse"]
     created_at: datetime
@@ -103,6 +107,52 @@ def _normalize_title_or_error(title: str) -> str:
     return normalized
 
 
+def _normalize_author_display_name(raw_value: object) -> str | None:
+    if not isinstance(raw_value, str):
+        return None
+    normalized = raw_value.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
+def _message_author_identity(
+    message: Message,
+    *,
+    current_user: User | None,
+) -> tuple[str | None, str | None, str | None, bool | None]:
+    if message.role != "user":
+        return (None, None, None, None)
+
+    metadata = message.metadata_json or {}
+    author_user_id = metadata.get("author_user_id")
+    if not isinstance(author_user_id, str) and message.user_id is not None:
+        author_user_id = str(message.user_id)
+    elif not isinstance(author_user_id, str):
+        author_user_id = None
+
+    author_display_name = _normalize_author_display_name(metadata.get("author_display_name"))
+    if author_display_name is None:
+        author_display_name = "Former User"
+
+    author_profile_picture_url = (
+        metadata.get("author_profile_picture_url")
+        if isinstance(metadata.get("author_profile_picture_url"), str)
+        else None
+    )
+
+    is_current_user_author: bool | None = None
+    if current_user is not None and message.user_id is not None:
+        is_current_user_author = current_user.id == message.user_id
+
+    return (
+        author_user_id,
+        author_display_name,
+        author_profile_picture_url,
+        is_current_user_author,
+    )
+
+
 def _conversation_to_response(
     conversation: Conversation,
     *,
@@ -120,11 +170,24 @@ def _conversation_to_response(
     )
 
 
-def _message_to_response(message: Message, *, attached_files: list[File]) -> MessageResponse:
+def _message_to_response(
+    message: Message,
+    *,
+    attached_files: list[File],
+    current_user: User | None,
+) -> MessageResponse:
+    author_user_id, author_display_name, author_profile_picture_url, is_current_user_author = (
+        _message_author_identity(message, current_user=current_user)
+    )
+
     return MessageResponse(
         id=str(message.id),
         role=message.role,
         content=message.content,
+        author_user_id=author_user_id,
+        author_display_name=author_display_name,
+        author_profile_picture_url=author_profile_picture_url,
+        is_current_user_author=is_current_user_author,
         metadata_json=message.metadata_json or {},
         files=[
             _file_to_response(file_row)
@@ -235,7 +298,7 @@ def search_conversation_index(
 def get_conversation_detail(
     conversation_id: UUID,
     include_archived: bool = Query(default=False),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     conversation = get_conversation(
@@ -265,7 +328,11 @@ def get_conversation_detail(
     detail = ConversationDetailResponse(
         **_conversation_to_response(conversation).model_dump(),
         messages=[
-            _message_to_response(message, attached_files=file_map.get(message.id, []))
+            _message_to_response(
+                message,
+                attached_files=file_map.get(message.id, []),
+                current_user=current_user,
+            )
             for message in messages
         ],
     )

@@ -98,10 +98,11 @@ async def run_claimed_heartbeat_run(claimed: ClaimedHeartbeatRun) -> None:
                 role="user",
                 content=instruction_text,
                 metadata_json={
-                    "source": "heartbeat",
-                    "heartbeat_job_id": str(claimed.heartbeat_job_id),
-                    "heartbeat_run_id": str(claimed.run_id),
-                    "instruction_file_path": claimed.instruction_file_path,
+                    **_heartbeat_author_metadata(
+                        heartbeat_job_id=claimed.heartbeat_job_id,
+                        heartbeat_run_id=claimed.run_id,
+                        instruction_file_path=claimed.instruction_file_path,
+                    ),
                 },
             )
             db.add(user_message)
@@ -226,6 +227,21 @@ def _build_heartbeat_prompt(*, instruction_file_path: str, instruction_text: str
         "Execute the instruction content below as this scheduled heartbeat turn.\n\n"
         f"{instruction_text}"
     )
+
+
+def _heartbeat_author_metadata(
+    *,
+    heartbeat_job_id: UUID,
+    heartbeat_run_id: UUID,
+    instruction_file_path: str,
+) -> dict[str, object]:
+    return {
+        "source": "heartbeat",
+        "heartbeat_job_id": str(heartbeat_job_id),
+        "heartbeat_run_id": str(heartbeat_run_id),
+        "instruction_file_path": instruction_file_path,
+        "author_display_name": "Heartbeat",
+    }
 
 
 async def _heartbeat_lock(

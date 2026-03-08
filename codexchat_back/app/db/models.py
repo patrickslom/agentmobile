@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BIGINT, Boolean, CheckConstraint, ForeignKey, Integer, String, Text, text
+from sqlalchemy import BIGINT, Boolean, CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import INET, JSONB, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,7 +15,9 @@ from app.db.base import Base
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
+        UniqueConstraint("display_name", name="uq_users_display_name"),
         CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),
+        CheckConstraint("char_length(trim(display_name)) > 0", name="ck_users_display_name_not_empty"),
         CheckConstraint(
             "theme_preference IS NULL OR theme_preference IN ('light', 'dark')",
             name="ck_users_theme_preference",
@@ -30,6 +32,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String(32), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    profile_picture_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -96,6 +100,11 @@ class Message(Base):
     )
     role: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

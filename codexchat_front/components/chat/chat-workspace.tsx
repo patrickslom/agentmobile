@@ -26,6 +26,7 @@ import type {
   ChatMessageFile,
   ChatRole,
   ConversationBusyEvent,
+  MessageCreatedEvent,
 } from "@/types/chat";
 
 type ApiConversation = {
@@ -44,6 +45,11 @@ type ApiConversationMessage = {
   created_at?: string;
   createdAt?: string;
   files?: unknown;
+  client_message_id?: string | null;
+  author_user_id?: string | null;
+  author_display_name?: string | null;
+  author_profile_picture_url?: string | null;
+  is_current_user_author?: boolean | null;
 };
 
 type ApiMessageFile = {
@@ -206,6 +212,41 @@ function normalizeMessageFile(item: ApiMessageFile): ChatMessageFile | null {
   };
 }
 
+function normalizeStringField(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function normalizeBooleanField(value: unknown): boolean | undefined {
+  if (value === true) {
+    return true;
+  }
+  if (value === false) {
+    return false;
+  }
+
+  return undefined;
+}
+
+function normalizeAuthorDisplayName(value: unknown): string {
+  const normalized = normalizeStringField(value);
+  if (!normalized) {
+    return "Former User";
+  }
+  if (normalized.toLowerCase() === "you") {
+    return "YOU";
+  }
+  return normalized;
+}
+
 function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
   if (!item.id || typeof item.id !== "string") {
     return null;
@@ -220,6 +261,11 @@ function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
     id: item.id,
     role,
     content: typeof item.content === "string" ? item.content : "",
+    clientMessageId: normalizeStringField(item.client_message_id),
+    authorUserId: normalizeStringField(item.author_user_id),
+    authorDisplayName: normalizeAuthorDisplayName(item.author_display_name),
+    authorProfilePictureUrl: normalizeStringField(item.author_profile_picture_url),
+    isCurrentUserAuthor: normalizeBooleanField(item.is_current_user_author),
     createdAt: item.created_at ?? item.createdAt ?? new Date().toISOString(),
     files: Array.isArray(item.files)
       ? item.files
@@ -476,6 +522,33 @@ function isRetryableSendErrorCode(code: string): boolean {
   );
 }
 
+function mergeMessagesById(messages: ChatMessage[]): ChatMessage[] {
+  const merged = new Map<string, ChatMessage>();
+
+  for (const message of messages) {
+    const existing = merged.get(message.id);
+    merged.set(message.id, existing ? { ...existing, ...message } : message);
+  }
+
+  return Array.from(merged.values()).sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+  );
+}
+
+function upsertMessage(messages: ChatMessage[], message: ChatMessage): ChatMessage[] {
+  const existingIndex = messages.findIndex((entry) => entry.id === message.id);
+  if (existingIndex === -1) {
+    return mergeMessagesById([...messages, message]);
+  }
+
+  const next = [...messages];
+  next[existingIndex] = {
+    ...next[existingIndex],
+    ...message,
+  };
+  return mergeMessagesById(next);
+}
+
 export default function ChatWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -511,19 +584,24 @@ export default function ChatWorkspace() {
   const [isCreatingConversation, setCreatingConversation] = useState(false);
   const [composerBottomOffset, setComposerBottomOffset] = useState(0);
   const [introQuote, setIntroQuote] = useState("What are we building today?");
+  const [hasMounted, setHasMounted] = useState(false);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
   const wsResolution = useMemo(() => {
+    if (!hasMounted) {
+      return { url: "", error: null as string | null };
+    }
+
     try {
       return { url: getWebSocketUrl(), error: null as string | null };
     } catch (error) {
       const message = error instanceof Error ? error.message : "WebSocket URL is not configured.";
       return { url: "", error: message };
     }
-  }, []);
+  }, [hasMounted]);
 
   const normalizedSearchQuery = debouncedConversationSearchQuery.trim();
   const isSearchActive = normalizedSearchQuery.length > 0;
@@ -630,7 +708,7 @@ export default function ChatWorkspace() {
         const detail = extractConversationDetail(payload);
         setMessagesByConversationId((previous) => ({
           ...previous,
-          [conversationId]: detail.messages,
+          [conversationId]: mergeMessagesById(detail.messages),
         }));
       } catch {
         setTimelineError("Unable to load messages for this conversation.");
@@ -640,6 +718,10 @@ export default function ChatWorkspace() {
     },
     [apiBaseUrl, router],
   );
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     void loadConversations("initial");
@@ -884,6 +966,10 @@ export default function ChatWorkspace() {
           id: optimisticId,
           role: "user",
           content,
+          clientMessageId: optimisticId,
+          authorUserId: "local-user",
+          authorDisplayName: "YOU",
+          isCurrentUserAuthor: true,
           createdAt: new Date().toISOString(),
           files,
           deliveryStatus: "sending",
@@ -1041,7 +1127,11 @@ export default function ChatWorkspace() {
   }, [apiBaseUrl, router, selectedConversationId]);
 
 
-  const applyAssistantDone = useCallback((conversationId: string, content: string | null) => {
+  const applyAssistantDone = useCallback((
+    conversationId: string,
+    messageId: string | null,
+    content: string | null,
+  ) => {
     setBusyByConversationId((previous) => ({
       ...previous,
       [conversationId]: false,
@@ -1059,6 +1149,18 @@ export default function ChatWorkspace() {
 
       setMessagesByConversationId((messageState) => {
         const current = messageState[conversationId] ?? [];
+        if (messageId) {
+          return {
+            ...messageState,
+            [conversationId]: upsertMessage(current, {
+              id: messageId,
+              role: "assistant",
+              content: finalContent,
+              createdAt: new Date().toISOString(),
+            }),
+          };
+        }
+
         const lastMessage = current[current.length - 1];
         if (lastMessage && lastMessage.pending && lastMessage.role === "assistant") {
           const replaced = [...current];
@@ -1090,6 +1192,51 @@ export default function ChatWorkspace() {
       });
 
       return rest;
+    });
+  }, []);
+
+  const applyCreatedMessage = useCallback((conversationId: string, rawMessage: unknown) => {
+    if (!rawMessage || typeof rawMessage !== "object") {
+      return;
+    }
+
+    const normalized = normalizeMessage(rawMessage as ApiConversationMessage);
+    if (!normalized) {
+      return;
+    }
+
+    setMessagesByConversationId((previous) => {
+      const current = previous[conversationId] ?? [];
+      const clientMessageId = normalized.clientMessageId;
+
+      if (clientMessageId) {
+        const optimisticIndex = current.findIndex(
+          (message) =>
+            message.clientMessageId === clientMessageId ||
+            (message.id === clientMessageId && message.deliveryStatus !== undefined),
+        );
+
+        if (optimisticIndex !== -1) {
+          const next = [...current];
+          next[optimisticIndex] = {
+            ...next[optimisticIndex],
+            ...normalized,
+            pending: false,
+            deliveryStatus: undefined,
+            isCurrentUserAuthor:
+              normalized.isCurrentUserAuthor ?? next[optimisticIndex].isCurrentUserAuthor,
+          };
+          return {
+            ...previous,
+            [conversationId]: mergeMessagesById(next),
+          };
+        }
+      }
+
+      return {
+        ...previous,
+        [conversationId]: upsertMessage(current, normalized),
+      };
     });
   }, []);
 
@@ -1137,10 +1284,20 @@ export default function ChatWorkspace() {
             : typeof doneEvent.message === "string"
               ? doneEvent.message
               : typeof doneEvent.text === "string"
-                ? doneEvent.text
+              ? doneEvent.text
                 : null;
 
-        applyAssistantDone(conversationId, doneContent);
+        applyAssistantDone(
+          conversationId,
+          typeof doneEvent.message_id === "string" ? doneEvent.message_id : null,
+          doneContent,
+        );
+        return;
+      }
+
+      if (event.type === "message_created") {
+        const createdEvent = event as MessageCreatedEvent;
+        applyCreatedMessage(conversationId, createdEvent.message);
         return;
       }
 
@@ -1181,7 +1338,7 @@ export default function ChatWorkspace() {
         }
       }
     },
-    [applyAssistantDone, markLatestSendingMessageAsFailed, selectedConversationId],
+    [applyAssistantDone, applyCreatedMessage, markLatestSendingMessageAsFailed, selectedConversationId],
   );
 
   const {
@@ -1191,7 +1348,7 @@ export default function ChatWorkspace() {
     retryNow,
   } = useChatWebSocket({
     url: wsResolution.url,
-    enabled: wsResolution.error === null,
+    enabled: hasMounted && wsResolution.error === null,
     onMessage: onWebSocketMessage,
     onOpen: () => {
       if (selectedConversationId) {
@@ -1243,6 +1400,7 @@ export default function ChatWorkspace() {
         conversationId,
         content: trimmedContent,
         file_ids: uploadedFiles.map((file) => file.id),
+        client_message_id: optimisticId,
       });
 
       if (!sent) {
@@ -1310,6 +1468,7 @@ export default function ChatWorkspace() {
       conversationId,
       content: failedMessage.content.trim(),
       file_ids: (failedMessage.files ?? []).map((file) => file.id),
+      client_message_id: failedMessage.clientMessageId ?? failedMessage.id,
     });
 
     if (!sent) {
@@ -1568,7 +1727,10 @@ export default function ChatWorkspace() {
 
           {shouldShowIntroQuote ? (
             <div className="mt-6 rounded-xl border border-border bg-muted/30 px-5 py-6 text-center sm:px-6">
-              <p className="text-lg font-medium tracking-tight text-foreground sm:text-xl">
+              <p
+                className="text-lg font-medium tracking-tight text-foreground sm:text-xl"
+                suppressHydrationWarning
+              >
                 {introQuote}
               </p>
             </div>
@@ -1790,7 +1952,9 @@ function SidebarContent({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{formatUpdatedAt(conversation.updatedAt)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground" suppressHydrationWarning>
+                    {formatUpdatedAt(conversation.updatedAt)}
+                  </p>
                 </button>
               );
             })
@@ -2151,18 +2315,6 @@ function ComposerPanel({
   );
 }
 
-function roleLabel(role: ChatRole): string {
-  if (role === "assistant") {
-    return "Assistant";
-  }
-
-  if (role === "system") {
-    return "System";
-  }
-
-  return "You";
-}
-
 function StreamingTrail() {
   const [frame, setFrame] = useState(1);
 
@@ -2183,25 +2335,70 @@ function StreamingTrail() {
   );
 }
 
+function messageLabel(message: ChatMessage): string {
+  if (message.role === "assistant") {
+    return "Assistant";
+  }
+
+  if (message.role === "system") {
+    return "System";
+  }
+
+  if (message.isCurrentUserAuthor === true) {
+    return "YOU";
+  }
+
+  return message.authorDisplayName ?? "Former User";
+}
+
+function messageAvatarFallback(message: ChatMessage): string {
+  const source = message.authorDisplayName?.trim() || "U";
+  if (!source) {
+    return "U";
+  }
+  return source[0].toUpperCase();
+}
+
 function MessageRow({ message, onRetry }: { message: ChatMessage; onRetry?: () => void }) {
-  const isUser = message.role === "user";
-  const rowClassName = isUser ? "flex justify-end" : "flex justify-start";
+  const isOwnUserMessage = message.role === "user" && message.isCurrentUserAuthor === true;
+  const rowClassName = isOwnUserMessage ? "flex justify-end" : "flex justify-start";
   const cardClassName =
     message.role === "assistant"
       ? "w-full rounded-xl border border-border bg-background p-4"
       : message.role === "system"
         ? "w-full rounded-xl border border-border bg-muted/60 p-4"
         : "w-full max-w-[70%] rounded-2xl bg-muted/20 p-4";
+  const label = messageLabel(message);
+  const showAvatar = message.role === "user";
 
   return (
     <div className={rowClassName}>
       <article className={cardClassName}>
         <header className="mb-2 flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
-            {roleLabel(message.role)}
-            {message.pending ? " (streaming)" : message.deliveryStatus === "sending" ? " (sending)" : ""}
+          <div className="flex items-center gap-2">
+            {showAvatar ? (
+              message.authorProfilePictureUrl ? (
+                // next/image proxy fetch can drop auth cookie for protected file endpoints.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={message.authorProfilePictureUrl}
+                  alt={label}
+                  className="h-6 w-6 rounded-full border border-border object-cover"
+                />
+              ) : (
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">
+                  {messageAvatarFallback(message)}
+                </span>
+              )
+            ) : null}
+            <p className="text-xs font-semibold tracking-[0.12em] uppercase text-muted-foreground">
+              {label}
+              {message.pending ? " (streaming)" : message.deliveryStatus === "sending" ? " (sending)" : ""}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground" suppressHydrationWarning>
+            {formatMessageTimestamp(message.createdAt)}
           </p>
-          <p className="text-xs text-muted-foreground">{formatMessageTimestamp(message.createdAt)}</p>
         </header>
         <div className="text-sm leading-6">
           <MessageMarkdown content={message.content} />

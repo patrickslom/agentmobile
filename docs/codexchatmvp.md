@@ -40,6 +40,7 @@ Minimum safety expectations:
   - See past conversations
   - Resume an existing conversation (continue context)
   - Shared visibility model: all users on the VPS can view shared conversation history/files
+  - Shared conversations preserve message authorship: user messages show `YOU` for the sender, peer names/avatars for others, and assistant messages remain full-width cards
   - Concurrency safety: only one active Codex run per conversation/thread at a time
 - File exchange:
   - Upload files from desktop/mobile into a conversation
@@ -210,11 +211,11 @@ Later:
 
 ### Tables (minimal)
 - `users`
-  - id, email (unique), password_hash, created_at
+  - id, email (unique), password_hash, display_name (required, unique), profile_picture_url (optional), created_at
 - `conversations`
   - id, user_id, title, codex_thread_id, created_at, updated_at
 - `messages`
-  - id, conversation_id, role (`user|assistant|system`), content (text/json), created_at
+  - id, conversation_id, user_id (nullable), role (`user|assistant|system`), content (text/json), created_at, metadata_json (author snapshot fields for user messages)
 - `files`
   - id, user_id, conversation_id, original_name, storage_path, mime_type, size_bytes, created_at
 - `message_files`

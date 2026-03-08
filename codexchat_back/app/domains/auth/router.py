@@ -49,6 +49,34 @@ def _resolve_client_ip(request: Request) -> str:
     return "unknown"
 
 
+def _normalize_display_name_from_email(email: str) -> str:
+    local_part = email.split("@", 1)[0].strip().lower()
+    normalized = "".join(ch for ch in local_part if ch.isalnum() or ch in {"_", "-", "."})
+    if not normalized:
+        normalized = "user"
+    if len(normalized) > 64:
+        normalized = normalized[:64]
+    return normalized
+
+
+def _next_available_display_name(db: Session, email: str) -> str:
+    base_name = _normalize_display_name_from_email(email)
+    candidate = base_name
+    suffix = 2
+    while True:
+        existing = db.execute(select(User).where(User.display_name == candidate)).scalar_one_or_none()
+        if existing is None:
+            return candidate
+        candidate = f"{base_name}-{suffix}"
+        if len(candidate) > 64:
+            candidate = candidate[:64]
+            if "-" in candidate:
+                candidate = candidate.rsplit("-", 1)[0]
+                if not candidate:
+                    candidate = "user"
+        suffix += 1
+
+
 def _set_auth_cookies(response: Response, *, session_cookie: str, csrf_token: str, expires_at: datetime) -> None:
     response.set_cookie(
         key=session_manager.session_cookie_name,
@@ -188,6 +216,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict[st
         email=email,
         password_hash=hash_password(payload.password),
         role="user",
+        display_name=_next_available_display_name(db, email),
         is_active=True,
         force_password_reset=False,
     )
