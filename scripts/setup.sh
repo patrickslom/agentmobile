@@ -27,7 +27,7 @@ show_banner() {
     |_____|_____\
     (____) (____)
 
-                Welcome to Codex Chat!
+                Welcome to AGENTMOBILE!
 BANNER
 }
 

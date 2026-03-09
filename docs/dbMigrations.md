@@ -3,16 +3,16 @@
 This project uses SQLAlchemy + Alembic for PostgreSQL schema management.
 
 ## Baseline
-- Baseline revision: `20260305_01` in `codexchat_back/alembic/versions/20260305_01_baseline.py`
+- Baseline revision: `20260305_01` in `backend/alembic/versions/20260305_01_baseline.py`
 - Baseline is intentionally empty and establishes migration history before schema tables are added.
 
 ## Environment
 - Required env var: `DATABASE_URL`
-- Expected format: PostgreSQL SQLAlchemy URL (example: `postgresql+psycopg://codexchat:codexchat@codexchat_db:5432/codexchat`)
+- Expected format: PostgreSQL SQLAlchemy URL (example: `postgresql+psycopg://agentmobile:agentmobile@db:5432/agentmobile`)
 - Validation is enforced at backend startup and Alembic runtime.
 
 ## Common Commands
-From `codexchat_back/`:
+From `backend/`:
 
 ```bash
 # create a new migration file
@@ -51,7 +51,7 @@ alembic history
 - Migration branch state (`alembic heads`) is reviewed to avoid accidental multi-head drift.
 
 ## Seed and Bootstrap
-- Idempotent seed helper is implemented in `codexchat_back/app/db/bootstrap.py`.
+- Idempotent seed helper is implemented in `backend/app/db/bootstrap.py`.
 - Seed scope:
   - ensure singleton `settings` row (`id=1`) exists
   - optionally create first admin user from `ADMIN_EMAIL` + (`ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH`)
@@ -61,7 +61,7 @@ alembic history
 - Manual seed command:
 
 ```bash
-cd codexchat_back
+cd backend
 python scripts/db_seed.py
 ```
 
@@ -80,8 +80,8 @@ python scripts/db_seed.py
 - Backup (logical, compressed):
 
 ```bash
-docker compose exec -T codexchat_db \
-  pg_dump -U "${POSTGRES_USER:-codexchat}" -d "${POSTGRES_DB:-codexchat}" --format=custom \
+docker compose exec -T db \
+  pg_dump -U "${POSTGRES_USER:-agentmobile}" -d "${POSTGRES_DB:-agentmobile}" --format=custom \
   | gzip > backup_$(date +%Y%m%d_%H%M%S).dump.gz
 ```
 
@@ -89,19 +89,19 @@ docker compose exec -T codexchat_db \
 
 ```bash
 gunzip -c backup_YYYYMMDD_HHMMSS.dump.gz \
-  | docker compose exec -T codexchat_db \
-      pg_restore -U "${POSTGRES_USER:-codexchat}" -d "${POSTGRES_DB:-codexchat}" --clean --if-exists --no-owner --no-privileges
+  | docker compose exec -T db \
+      pg_restore -U "${POSTGRES_USER:-agentmobile}" -d "${POSTGRES_DB:-agentmobile}" --clean --if-exists --no-owner --no-privileges
 ```
 
 - After restore:
-  - run `docker compose run --rm codexchat_back alembic upgrade head`
+  - run `docker compose run --rm backend alembic upgrade head`
   - run smoke checks for `/api/health`, web route, and `/ws`.
 
 ## Manual Verification Command
 Run the checklist verification helper after migrations:
 
 ```bash
-cd codexchat_back
+cd backend
 python scripts/db_manual_verify.py
 ```
 

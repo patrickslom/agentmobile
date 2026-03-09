@@ -38,7 +38,7 @@ Thumbs.db
 # Local runtime data
 uploads/
 workspace/
-.codexchat/
+.agentmobile/
 
 # Docker overrides
 docker-compose.override.yml

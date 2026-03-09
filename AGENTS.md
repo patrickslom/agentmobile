@@ -18,8 +18,8 @@ Default command:
 
 This is the required default `quick` path:
 - uses `docker-compose.front-quick.yml`
-- runs `codexchat_front` with `next dev`
-- bind-mounts `./codexchat_front` into the container
+- runs `frontend` with `next dev`
+- bind-mounts `./frontend` into the container
 - keeps `node_modules` and `.next` in named Docker volumes
 - avoids the slow production image rebuild loop for normal UI edits
 
@@ -40,14 +40,14 @@ This is the strict production-style path:
 - runs the full optimized `next build` image flow
 - use it for dependency changes, build-config changes, and before higher-confidence verification
 
-Do not use `docker compose up -d --build codexchat_front` directly for routine frontend edits.
+Do not use `docker compose up -d --build frontend` directly for routine frontend edits.
 If you choose the full rebuild path, state the reason explicitly before running it.
 
 ## Database Change Rule
 
 If a change adds, removes, or alters database schema or migration files, the same run must also:
 - apply the migration to the live database
-- rebuild and restart any affected long-running services that use that schema, at minimum `codexchat_back` and `codexchat_worker`
+- rebuild and restart any affected long-running services that use that schema, at minimum `backend` and `worker`
 - verify the updated schema is live before considering the task complete
 
 Do not stop after editing model or Alembic files when database-affecting changes are part of the work.

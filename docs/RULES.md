@@ -5,7 +5,7 @@
 - Any new `.md` file added to this directory must also be added to `INDEX.md` with a short summary.
 - If you add a markdown file anywhere under `docs/`, update `docs/INDEX.md` in the same change before the work is considered complete.
 - If an existing `.md` file is renamed or removed, `INDEX.md` must be updated in the same change.
-- Product behavior changes must update both `README.md` (user-facing) and `docs/codexchatmvp.md` (spec-facing).
+- Product behavior changes must update both `README.md` (user-facing) and `docs/agentmobilemvp.md` (spec-facing).
 - `README.md` must be written as production/public-facing documentation for the completed project and should not be used to track current in-progress development status.
 - Current development status must be documented in `docs/` files (not in `README.md`).
 - TODO progress updates must only check off tasks that are actually implemented and validated.
@@ -42,16 +42,16 @@
 
 ## Architecture Rules
 - Keep frontend/backend/db naming consistent:
-  - `codexchat_front`
-  - `codexchat_back`
-  - `codexchat_db`
+  - `frontend`
+  - `backend`
+  - `db`
 - Keep backend routing consistent on one domain:
   - `/` frontend
   - `/api/*` backend
   - `/ws` backend
 - Maintain split services from day one:
-  - API service (`codexchat_back`)
-  - worker service (`codexchat_worker`)
+  - API service (`backend`)
+  - worker service (`worker`)
 
 ## Database Rules
 - Use Postgres + Alembic migrations.

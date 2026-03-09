@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add project awareness to CodexChat so the assistant can reliably determine which project a user means and ask for clarification when ambiguous.
+Add project awareness to AGENTMOBILE so the assistant can reliably determine which project a user means and ask for clarification when ambiguous.
 
 ## Scope (Phase 1)
 

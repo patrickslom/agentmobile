@@ -1,7 +1,7 @@
 # Frontend TODO
 
 ## 0) Project Bootstrap
-- [x] Create Next.js app with TypeScript and Tailwind in `codexchat_front`. (completed 2026-03-05)
+- [x] Create Next.js app with TypeScript and Tailwind in `frontend`. (completed 2026-03-05)
 - [x] Set up base folder structure: `app/`, `components/`, `lib/`, `hooks/`, `types/`. (completed 2026-03-05)
 - [x] Add global style tokens for black/white theme and dark mode variables. (completed 2026-03-05)
 - [x] Add app shell layout with responsive viewport and safe-area handling. (completed 2026-03-05)
@@ -21,7 +21,7 @@
 - [x] Implement dark mode toggle persisted to local storage. (completed 2026-03-05; user override accepted despite ws smoke failure)
 - [x] Ensure black/white-first palette in both themes. (completed 2026-03-05; user override accepted despite ws smoke failure)
 - [x] Add typography and code block styling. (completed 2026-03-05; user override accepted despite ws smoke failure)
-- [x] Add brand logo beside `CodexChat` on the landing page header and scale for visibility. (completed 2026-03-05)
+- [x] Add brand logo beside `AGENTMOBILE` on the landing page header and scale for visibility. (completed 2026-03-05)
 
 ## 2.1) Branding Icons + Favicons
 - [x] Flatten favicon/icon assets into `public/`, wire metadata in `app/layout.tsx`, and remove default `app/favicon.ico`. (completed 2026-03-05)

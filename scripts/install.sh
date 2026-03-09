@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/patrickslom/codexchat.git}"
+REPO_URL="${REPO_URL:-https://github.com/patrickslom/agentmobile.git}"
 BRANCH="${BRANCH:-master}"
-INSTALL_DIR="${CODEXCHAT_DIR:-$HOME/codexchat}"
+INSTALL_DIR="${AGENTMOBILE_DIR:-$HOME/agentmobile}"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -20,7 +20,7 @@ require_cmd() {
 require_cmd git
 require_cmd bash
 
-green "CodexChat installer"
+green "AGENTMOBILE installer"
 yellow "Repo: $REPO_URL"
 yellow "Branch: $BRANCH"
 yellow "Install dir: $INSTALL_DIR"
@@ -33,7 +33,7 @@ if [ -d "$INSTALL_DIR/.git" ]; then
 else
   if [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null || true)" ]; then
     red "Install directory exists and is not empty: $INSTALL_DIR"
-    yellow "Set CODEXCHAT_DIR to a different directory and re-run installer."
+    yellow "Set AGENTMOBILE_DIR to a different directory and re-run installer."
     exit 1
   fi
 

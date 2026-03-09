@@ -1,8 +1,8 @@
 # Backend TODO
 
 ## 0) Service Architecture and Bootstrap
-- [x] Create FastAPI project for `codexchat_back` with modular domains: `auth`, `chat`, `codex`, `files`, `settings`, `admin`, `locks`. (completed 2026-03-05)
-- [x] Create separate worker service `codexchat_worker` in same codebase/package (`jobs`, `heartbeat`, `scheduler`). (completed 2026-03-05)
+- [x] Create FastAPI project for `backend` with modular domains: `auth`, `chat`, `codex`, `files`, `settings`, `admin`, `locks`. (completed 2026-03-05)
+- [x] Create separate worker service `worker` in same codebase/package (`jobs`, `heartbeat`, `scheduler`). (completed 2026-03-05)
 - [x] Add shared config module for env loading and validation. (completed 2026-03-05)
 - [x] Add health endpoints for API and worker. (completed 2026-03-05)
 - [x] Add logging setup with request IDs and conversation IDs. (completed 2026-03-05)
@@ -90,7 +90,7 @@
 - [x] `POST /api/heartbeat-jobs` (completed 2026-03-06)
 - [x] `PATCH /api/heartbeat-jobs/:id` (completed 2026-03-06)
 - [x] `DELETE /api/heartbeat-jobs/:id` (completed 2026-03-06)
-- [x] Implement worker polling/scheduler loop in `codexchat_worker`. (completed 2026-03-06)
+- [x] Implement worker polling/scheduler loop in `worker`. (completed 2026-03-06)
 - [x] Enforce interval presets and minimum interval rules. (completed 2026-03-06)
 - [x] Enforce defaults: disabled by default, max 10 jobs unless unlimited setting. (completed 2026-03-06)
 - [x] For each run: read markdown file path, send as conversation turn, persist output. (completed 2026-03-06)

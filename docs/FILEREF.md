@@ -1,7 +1,7 @@
 # File Reference Plan
 
 ## Goal
-Add a Codex-style `@` file reference flow to CodexChat so a user can type `@`, search files in the workspace, select one or more matches, and send the message with those file references available to the agent as context.
+Add a Codex-style `@` file reference flow to AGENTMOBILE so a user can type `@`, search files in the workspace, select one or more matches, and send the message with those file references available to the agent as context.
 
 This is a planning doc only. Do not implement from this document until the UX and backend contract are aligned.
 
@@ -138,7 +138,7 @@ Recommended default:
 
 ## Architecture
 ### Frontend
-Add a small mention state machine to the composer in [`/root/codexchat/codexchat_front/components/chat/chat-workspace.tsx`](/root/codexchat/codexchat_front/components/chat/chat-workspace.tsx).
+Add a small mention state machine to the composer in [`/root/agentmobile/frontend/components/chat/chat-workspace.tsx`](/root/agentmobile/frontend/components/chat/chat-workspace.tsx).
 
 Likely draft state:
 - `fileRefQuery`
@@ -178,7 +178,7 @@ Candidate search endpoint:
 - `GET /api/workspace/files/search?q=chat-workspace&limit=20`
 
 Candidate browse endpoint:
-- `GET /api/workspace/files/browse?path=codexchat/codexchat_front/components`
+- `GET /api/workspace/files/browse?path=agentmobile/frontend/components`
 
 Response shape:
 
@@ -186,7 +186,7 @@ Response shape:
 {
   "items": [
     {
-      "relative_path": "codexchat_front/components/chat/chat-workspace.tsx",
+      "relative_path": "frontend/components/chat/chat-workspace.tsx",
       "display_name": "chat-workspace.tsx"
     }
   ]
@@ -217,19 +217,19 @@ Candidate shape:
 {
   "type": "send_message",
   "conversation_id": "...",
-  "content": "Check @codexchat_front/components/chat/chat-workspace.tsx",
+  "content": "Check @frontend/components/chat/chat-workspace.tsx",
   "file_ids": [],
   "file_refs": [
     {
       "kind": "workspace",
-      "relative_path": "codexchat_front/components/chat/chat-workspace.tsx"
+      "relative_path": "frontend/components/chat/chat-workspace.tsx"
     }
   ]
 }
 ```
 
 ### Backend turn handling
-In [`/root/codexchat/codexchat_back/app/domains/chat/websocket.py`](/root/codexchat/codexchat_back/app/domains/chat/websocket.py):
+In [`/root/agentmobile/backend/app/domains/chat/websocket.py`](/root/agentmobile/backend/app/domains/chat/websocket.py):
 - validate each `relative_path`
 - resolve to an absolute path under configured workspace root
 - reject traversal or missing files
@@ -260,7 +260,7 @@ Example metadata:
   "file_refs": [
     {
       "kind": "workspace",
-      "relative_path": "codexchat_front/components/chat/chat-workspace.tsx"
+      "relative_path": "frontend/components/chat/chat-workspace.tsx"
     }
   ]
 }

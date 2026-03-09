@@ -1,26 +1,28 @@
+name: agentmobile
+
 services:
-  codexchat_db:
-    container_name: codexchat_db
+  db:
+    container_name: db
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-codexchat}
-      POSTGRES_USER: ${POSTGRES_USER:-codexchat}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codexchat}
+      POSTGRES_DB: ${POSTGRES_DB:-agentmobile}
+      POSTGRES_USER: ${POSTGRES_USER:-agentmobile}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentmobile}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-codexchat} -d ${POSTGRES_DB:-codexchat}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentmobile} -d ${POSTGRES_DB:-agentmobile}"]
       interval: 5s
       timeout: 5s
       retries: 10
     volumes:
-      - codexchat_db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
     networks:
-      - codexchat_internal
+      - internal
 
-  codexchat_back:
-    container_name: codexchat_back
+  backend:
+    container_name: backend
     build:
-      context: ./codexchat_back
+      context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
     privileged: true
@@ -28,17 +30,17 @@ services:
     cap_add:
       - SYS_ADMIN
     depends_on:
-      codexchat_db:
+      db:
         condition: service_healthy
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://codexchat:codexchat@codexchat_db:5432/codexchat}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://agentmobile:agentmobile@db:5432/agentmobile}
       REDIS_URL: ${REDIS_URL:-}
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_PRETTY: ${LOG_PRETTY:-false}
       SESSION_SECRET: ${SESSION_SECRET:-replace_with_long_random_secret_at_least_32_chars}
-      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-codexchat_session}
-      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-codexchat_csrf}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-agentmobile_session}
+      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-agentmobile_csrf}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
       ENABLE_PUBLIC_REGISTRATION: ${ENABLE_PUBLIC_REGISTRATION:-false}
       CODEX_TURN_TIMEOUT_SECONDS: ${CODEX_TURN_TIMEOUT_SECONDS:-300}
@@ -63,9 +65,9 @@ services:
       NODE_PATH: ${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}
     networks:
       - n8n_default
-      - codexchat_internal
+      - internal
     volumes:
-      - codexchat_uploads_data:/app/uploads
+      - uploads_data:/app/uploads
       - ${WORKSPACE_PATH:-./workspace}:${CODEX_WORKSPACE_PATH:-/workspace}
       - ${CODEX_HOST_NODE_PATH:-/usr/bin/node}:${CODEX_CONTAINER_NODE_PATH:-/usr/local/bin/node}:ro
       - ${CODEX_HOST_NODE_MODULES_PATH:-/usr/lib/node_modules}:${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}:ro
@@ -73,17 +75,17 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=n8n_default
-      - traefik.http.routers.codexchat-back.entrypoints=web,websecure
-      - traefik.http.routers.codexchat-back.rule=(Host(`questflow.net`) || Host(`www.questflow.net`) || Host(`todo.flounderboard.com`)) && (PathPrefix(`/api`) || PathPrefix(`/ws`))
-      - traefik.http.routers.codexchat-back.priority=300
-      - traefik.http.routers.codexchat-back.tls=true
-      - traefik.http.routers.codexchat-back.tls.certresolver=mytlschallenge
-      - traefik.http.services.codexchat-back.loadbalancer.server.port=8000
+      - traefik.http.routers.backend.entrypoints=web,websecure
+      - traefik.http.routers.backend.rule=(Host(`agentmobile.pro`) || Host(`www.agentmobile.pro`)) && (PathPrefix(`/api`) || PathPrefix(`/ws`))
+      - traefik.http.routers.backend.priority=300
+      - traefik.http.routers.backend.tls=true
+      - traefik.http.routers.backend.tls.certresolver=mytlschallenge
+      - traefik.http.services.backend.loadbalancer.server.port=8000
 
-  codexchat_worker:
-    container_name: codexchat_worker
+  worker:
+    container_name: worker
     build:
-      context: ./codexchat_back
+      context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
     privileged: true
@@ -91,18 +93,18 @@ services:
     cap_add:
       - SYS_ADMIN
     depends_on:
-      codexchat_db:
+      db:
         condition: service_healthy
     command: ["uvicorn", "app.worker.main:app", "--host", "0.0.0.0", "--port", "8001"]
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://codexchat:codexchat@codexchat_db:5432/codexchat}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://agentmobile:agentmobile@db:5432/agentmobile}
       REDIS_URL: ${REDIS_URL:-}
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_PRETTY: ${LOG_PRETTY:-false}
       SESSION_SECRET: ${SESSION_SECRET:-replace_with_long_random_secret_at_least_32_chars}
-      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-codexchat_session}
-      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-codexchat_csrf}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-agentmobile_session}
+      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-agentmobile_csrf}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-168}
       ENABLE_PUBLIC_REGISTRATION: ${ENABLE_PUBLIC_REGISTRATION:-false}
       CODEX_TURN_TIMEOUT_SECONDS: ${CODEX_TURN_TIMEOUT_SECONDS:-300}
@@ -126,18 +128,18 @@ services:
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
       NODE_PATH: ${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}
     networks:
-      - codexchat_internal
+      - internal
     volumes:
-      - codexchat_uploads_data:/app/uploads
+      - uploads_data:/app/uploads
       - ${WORKSPACE_PATH:-./workspace}:${CODEX_WORKSPACE_PATH:-/workspace}
       - ${CODEX_HOST_NODE_PATH:-/usr/bin/node}:${CODEX_CONTAINER_NODE_PATH:-/usr/local/bin/node}:ro
       - ${CODEX_HOST_NODE_MODULES_PATH:-/usr/lib/node_modules}:${CODEX_CONTAINER_NODE_MODULES_PATH:-/usr/local/lib/node_modules}:ro
       - ${CODEX_HOST_AUTH_PATH:-/root/.codex}:${CODEX_CONTAINER_AUTH_PATH:-/root/.codex}
 
-  codexchat_front:
-    container_name: codexchat_front
+  frontend:
+    container_name: frontend
     build:
-      context: ./codexchat_front
+      context: ./frontend
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_APP_ORIGIN: https://${APP_DOMAIN}
@@ -149,18 +151,21 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=n8n_default
-      - traefik.http.routers.codexchat-front.entrypoints=web,websecure
-      - traefik.http.routers.codexchat-front.rule=Host(`questflow.net`) || Host(`www.questflow.net`) || Host(`todo.flounderboard.com`)
-      - traefik.http.routers.codexchat-front.priority=200
-      - traefik.http.routers.codexchat-front.tls=true
-      - traefik.http.routers.codexchat-front.tls.certresolver=mytlschallenge
-      - traefik.http.services.codexchat-front.loadbalancer.server.port=3000
+      - traefik.http.routers.frontend.entrypoints=web,websecure
+      - traefik.http.routers.frontend.rule=Host(`agentmobile.pro`) || Host(`www.agentmobile.pro`)
+      - traefik.http.routers.frontend.priority=200
+      - traefik.http.routers.frontend.tls=true
+      - traefik.http.routers.frontend.tls.certresolver=mytlschallenge
+      - traefik.http.services.frontend.loadbalancer.server.port=3000
 
 networks:
   n8n_default:
     external: true
-  codexchat_internal:
+  internal:
+    name: agentmobile_internal
 
 volumes:
-  codexchat_db_data:
-  codexchat_uploads_data:
+  db_data:
+    name: agentmobile_db_data
+  uploads_data:
+    name: agentmobile_uploads_data

@@ -5,7 +5,7 @@ Give users a clear, low-friction path from fresh VPS to first successful chat.
 
 ## One-Line Install
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/patrickslom/codexchat/master/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/patrickslom/agentmobile/master/scripts/install.sh)
 ```
 
 ## User Story: End-to-End

@@ -1,7 +1,7 @@
 # Chat
 
 ## Goal
-Define chat-specific product behavior for the main CodexChat experience.
+Define chat-specific product behavior for the main AGENTMOBILE experience.
 
 This document is intended to hold focused chat module notes that would otherwise be scattered across broader planning docs.
 

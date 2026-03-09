@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STACK_DIR="$ROOT_DIR/.codexchat/traefik"
+STACK_DIR="$ROOT_DIR/.agentmobile/traefik"
 
 red() { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
@@ -70,7 +70,7 @@ cat > "$STACK_DIR/docker-compose.yml" <<'COMPOSE'
 services:
   traefik:
     image: traefik:v3.1
-    container_name: codexchat_traefik
+    container_name: agentmobile_traefik
     restart: unless-stopped
     command:
       - --api.dashboard=true

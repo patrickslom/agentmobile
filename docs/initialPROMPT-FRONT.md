@@ -1,10 +1,10 @@
-You are working in /root/codexchat.
+You are working in /root/agentmobile.
 
   Follow these files strictly:
   - docs/RULES.md
   - docs/builderLOOP.md
   - docs/INDEX.md
-  - docs/codexchatmvp.md
+  - docs/agentmobilemvp.md
   - docs/TODO/frontendTODO.md
   - docs/TODO/backendTODO.md
   - docs/TODO/dbTODO.md
@@ -36,11 +36,11 @@ You are working in /root/codexchat.
 
   Important context for this VPS:
   - Current active dev host is todo.flounderboard.com
-  routed to codexchat_front.
+  routed to frontend.
   - Existing Traefik network is n8n_default; do not create
   a new network.
   - This domain routing is temporary and documented in
-  docs/codexchatmvp.md.
+  docs/agentmobilemvp.md.
   - README.md should not be changed for VPS-specific
   temporary domain notes.
 

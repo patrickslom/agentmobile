@@ -29,8 +29,8 @@ Pass/fail note:
 ```bash
 bash -n scripts/setup.sh
 docker compose config
-docker compose build codexchat_back codexchat_worker
-docker compose up -d codexchat_back codexchat_worker
+docker compose build backend worker
+docker compose up -d backend worker
 ```
 Key results:
 - `setup.sh` syntax check passed.
@@ -45,10 +45,10 @@ Pass/fail note:
 
 ### In-container Codex runtime checks (protocol-level confidence)
 ```bash
-docker compose exec -T codexchat_back sh -lc 'which codex && readlink -f /usr/local/bin/codex && codex --version && codex login status'
-docker compose exec -T codexchat_worker sh -lc 'which codex && codex --version && codex login status'
-docker compose exec -T codexchat_back sh -lc 'which node && node -v && echo NODE_PATH=$NODE_PATH'
-docker compose exec -T codexchat_back python - <<PY
+docker compose exec -T backend sh -lc 'which codex && readlink -f /usr/local/bin/codex && codex --version && codex login status'
+docker compose exec -T worker sh -lc 'which codex && codex --version && codex login status'
+docker compose exec -T backend sh -lc 'which node && node -v && echo NODE_PATH=$NODE_PATH'
+docker compose exec -T backend python - <<PY
 import urllib.request
 print(urllib.request.urlopen("http://127.0.0.1:8000/api/health").status)
 print(urllib.request.urlopen("http://127.0.0.1:8000/api/health").read().decode())
@@ -93,5 +93,5 @@ Pass/fail note:
 ## Checklist Impact
 - No TODO checkbox changes were made in this run.
 - Reason: this run focused on Codex runtime source policy (global-first + container reuse), not full re-validation of all backendTODO section 13 behavior.
-- Reference TODO file: [docs/TODO/backendTODO.md](/root/codexchat/docs/TODO/backendTODO.md)
+- Reference TODO file: [docs/TODO/backendTODO.md](/root/agentmobile/docs/TODO/backendTODO.md)
 

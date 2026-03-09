@@ -4,11 +4,11 @@ Date reviewed: 2026-03-08
 
 ## Short answer
 
-Yes, `codexchat` can support user-selectable models, but the current app does not expose that capability.
+Yes, `agentmobile` can support user-selectable models, but the current app does not expose that capability.
 
 ## Current app state
 
-The current `codexchat` implementation does not expose model selection in the UI, API, database settings, or websocket payloads.
+The current `agentmobile` implementation does not expose model selection in the UI, API, database settings, or websocket payloads.
 
 - The runtime launches `codex app-server --listen stdio://` with no explicit `--model` flag or config override.
 - Chat turns send `approvalPolicy`, `sandboxPolicy`, and `input` to `turn/start`, but no `model`.
@@ -28,7 +28,7 @@ The underlying Codex runtime does support model selection.
   - `turn/start.model`
   - `model/list`
 
-This means model selection is supported by the runtime even though `codexchat` does not currently pass or persist it.
+This means model selection is supported by the runtime even though `agentmobile` does not currently pass or persist it.
 
 ## Current default in this environment
 
@@ -38,7 +38,7 @@ In this environment, `/root/.codex/config.toml` currently sets:
 model = "gpt-5.4"
 ```
 
-Because `codexchat` does not pass an explicit model today, it will likely inherit that default from the mounted Codex configuration.
+Because `agentmobile` does not pass an explicit model today, it will likely inherit that default from the mounted Codex configuration.
 
 ## What would be needed
 
@@ -55,11 +55,11 @@ The runtime is capable of supporting per-conversation or per-turn model selectio
 
 Repository files:
 
-- `codexchat_back/app/domains/codex/runtime.py`
-- `codexchat_back/app/domains/chat/websocket.py`
-- `codexchat_back/app/db/models.py`
-- `codexchat_back/app/domains/settings/router.py`
-- `codexchat_front/components/settings/settings-page-client.tsx`
+- `backend/app/domains/codex/runtime.py`
+- `backend/app/domains/chat/websocket.py`
+- `backend/app/db/models.py`
+- `backend/app/domains/settings/router.py`
+- `frontend/components/settings/settings-page-client.tsx`
 - `docker-compose.yml`
 
 Local runtime evidence:

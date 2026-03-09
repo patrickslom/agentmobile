@@ -151,7 +151,7 @@ EOF
 - Questions asked:
 - Assumptions:
 - Validation commands/results:
-- Commit: `64fd6c2` - feat(frontend): bootstrap Next.js app and deploy CodexChat frontend via existing Traefik network
+- Commit: `64fd6c2` - feat(frontend): bootstrap Next.js app and deploy AGENTMOBILE frontend via existing Traefik network
 - Push: `origin/master` updated successfully
 - Deploy status:
 - Smoke check status:
@@ -169,7 +169,7 @@ EOF
   - WebSocket security enforces origin + allowed-host validation and rejects unauthorized upgrades.
   - Event validation is strict for supported event type + required fields, while allowing harmless extra fields.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app` ✅
+  - `cd backend && python3 -m compileall app` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -187,9 +187,9 @@ EOF
   - `PATCH /api/settings` supports partial updates and validates each provided field.
   - Shared-workspace non-privacy warning content is static for MVP.
 - Validation commands/results:
-  - `python3 -m compileall codexchat_back/app` ✅
-  - `python3 -m compileall codexchat_back/alembic` ✅
-  - `cd codexchat_back && python3 -m pytest -q` ❌ (`No module named pytest`)
+  - `python3 -m compileall backend/app` ✅
+  - `python3 -m compileall backend/alembic` ✅
+  - `cd backend && python3 -m pytest -q` ❌ (`No module named pytest`)
 - Commit: `e94f50e` - feat(backend): implement settings domain endpoints and per-user theme preference
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -207,7 +207,7 @@ EOF
 - Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add app shell layout with responsive viewport and safe-area handling.
 - Questions asked:
-  1) Should this app shell be implemented in `codexchat_front/app/layout.tsx` with a reusable wrapper component?
+  1) Should this app shell be implemented in `frontend/app/layout.tsx` with a reusable wrapper component?
   2) Should safe-area support target `env(safe-area-inset-*)` for iOS-style notches with fallbacks to `0px`?
   3) Should I include only structural shell styling now (no auth/nav logic), keeping scope strictly to this checklist item?
 - Assumptions:
@@ -215,8 +215,8 @@ EOF
   - App shell is implemented directly in `app/layout.tsx` with a simple wrapper + main content container.
   - Safe-area support uses `env(safe-area-inset-*)` variables with `0px` fallback values.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit: `cf6b06f` - feat(frontend): deliver message timeline and resilient websocket streaming UX
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -233,7 +233,7 @@ EOF
 - Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Add global style tokens for black/white theme and dark mode variables.
 - Questions asked:
-  1) Should tokens be defined in `codexchat_front/app/globals.css` using CSS custom properties?
+  1) Should tokens be defined in `frontend/app/globals.css` using CSS custom properties?
   2) Should we include only core semantic tokens now (`background`, `foreground`, `muted`, `border`, `accent`)?
   3) Should dark mode be wired via `prefers-color-scheme` with no manual toggle yet?
 - Assumptions:
@@ -241,11 +241,11 @@ EOF
   - This task is limited to global token definition and theme variable wiring only.
   - Dark mode behavior follows OS/browser preference only for now.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit: `76648af` - feat(frontend): add global black/white theme tokens with dark-mode variables
 - Push: `origin/master` updated successfully
-- Deploy status: `docker compose build` + `docker compose up -d` succeeded for `codexchat_front`.
+- Deploy status: `docker compose build` + `docker compose up -d` succeeded for `frontend`.
 - Smoke check status:
   - `https://todo.flounderboard.com/` ✅ (HTTP 200)
   - `https://todo.flounderboard.com/api/health` ⚠️ (HTTP 404; backend health endpoint not available yet)
@@ -254,10 +254,10 @@ EOF
   - Frontend-only run; backend routing endpoints are pending backend TODO implementation.
 
 - Date: 2026-03-05
-- Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Create Next.js app with TypeScript and Tailwind in `codexchat_front`.
+- Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Create Next.js app with TypeScript and Tailwind in `frontend`.
 - Questions asked:
   1) Start with frontend bootstrap first despite default DB/backend priority?
-  2) Scaffold `codexchat_front/` with Next.js App Router + Tailwind?
+  2) Scaffold `frontend/` with Next.js App Router + Tailwind?
 
 - Date: 2026-03-06
 - Task completed: docs/TODO/frontendTODO.md :: 9) Settings Page + 10) Admin Settings Page (user-approved same-run override)
@@ -271,8 +271,8 @@ EOF
   - Notifications use top-floating toast popups with padding and rounded corners.
   - Backend gap identified: `POST /api/admin/users/:id/reset-password` not implemented; reset flow includes explicit fallback notice.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit: `89ebd71` - feat(frontend): implement safety guardrails across authenticated UX
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -297,7 +297,7 @@ EOF
   - Pagination is `page` + `page_size` with total and `has_next_page`.
   - Warning metadata should be consistent across settings and chat APIs.
 - Validation commands/results:
-  - `python3 -m compileall codexchat_back/app codexchat_back/alembic` ✅
+  - `python3 -m compileall backend/app backend/alembic` ✅
 - Commit: `e7b2a84` - feat(backend): add conversation search ranking and shared warning payload surfaces
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -316,21 +316,21 @@ EOF
   - User approved Next.js + TypeScript + Tailwind scaffold.
   - Existing Traefik network is `n8n_default`; do not create a new network.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit:
 - Push:
-- Deploy status: `docker compose build` + `docker compose up -d` succeeded for `codexchat_front`.
+- Deploy status: `docker compose build` + `docker compose up -d` succeeded for `frontend`.
 - Smoke check status:
   - `https://todo.flounderboard.com` ✅ (HTTP 200)
   - `https://www.todo.flounderboard.com` ✅ (HTTP 200)
 - Notes/blockers:
-  - CodexChat primary production domains still require DNS alignment before LE certificate validation can complete on this VPS.
+  - AGENTMOBILE primary production domains still require DNS alignment before LE certificate validation can complete on this VPS.
 
 - Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 0) Project Bootstrap :: Set up base folder structure: `app/`, `components/`, `lib/`, `hooks/`, `types/`.
 - Questions asked:
-  1) Should folders be top-level in `codexchat_front/`?
+  1) Should folders be top-level in `frontend/`?
   2) Add `.gitkeep` placeholders in empty folders?
   3) Add path aliases for these folders in `tsconfig.json`?
 - Assumptions:
@@ -355,8 +355,8 @@ EOF
   - `NEXT_PUBLIC_APP_ORIGIN` is the primary frontend input, with optional overrides `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_WS_URL`.
   - Docker build wiring should pass public env values at build-time so Next.js client configuration is consistent in container builds.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
   - `docker compose config` ✅ (rendered successfully; warning observed when `APP_DOMAIN` is unset in shell env)
 - Commit: `e91dee6` - feat(frontend): wire API and websocket URLs from app domain
 - Push: `origin/master` updated successfully
@@ -382,9 +382,9 @@ EOF
   - Worker uses DB polling loop with env-configured poll interval, row-level claiming/locking, and stale recovery.
   - Heartbeat job `instruction_file_path` is strict server-side validated: absolute, existing, markdown file, and constrained to allowed base path when configured.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `cd backend && python3 -m compileall app alembic` ✅
   - `docker compose config` ✅
-  - `cd codexchat_back && python3 -m compileall app` ✅ (post-fix verification)
+  - `cd backend && python3 -m compileall app` ✅ (post-fix verification)
 - Commit: `13ea3cc` - feat(backend): implement heartbeat job API and worker scheduler loop
 - Commit: `3916216` - fix(deploy): use JSON env format for heartbeat interval presets
 - Push: `origin/master` updated successfully
@@ -404,8 +404,8 @@ EOF
   - Generic auth failure message is always `Invalid email or password` unless lockout is explicitly signaled.
   - Lockout UX shows `Too many attempts. Try again in X minutes.` when retry timing exists, otherwise fallback message.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -423,9 +423,9 @@ EOF
   - Message role constraint remains `user|assistant|system`.
   - `files.size_bytes` is constrained to `>= 0`; existing settings minimum constraints remain enforced.
 - Validation commands/results:
-  - `docker run --rm --network codexchat_codexchat_internal -e DATABASE_URL=... -v /root/codexchat/codexchat_back:/app -w /app codexchat-codexchat_back python -m compileall app alembic` ✅
-  - `docker run --rm --network codexchat_codexchat_internal -e DATABASE_URL=... -v /root/codexchat/codexchat_back:/app -w /app codexchat-codexchat_back alembic heads` ✅ (`20260305_07`, `20260305_08`)
-  - `docker run --rm --network codexchat_codexchat_internal -e DATABASE_URL=... -v /root/codexchat/codexchat_back:/app -w /app codexchat-codexchat_back alembic upgrade heads` ✅
+  - `docker run --rm --network agentmobile_internal -e DATABASE_URL=... -v /root/agentmobile/backend:/app -w /app agentmobile-backend python -m compileall app alembic` ✅
+  - `docker run --rm --network agentmobile_internal -e DATABASE_URL=... -v /root/agentmobile/backend:/app -w /app agentmobile-backend alembic heads` ✅ (`20260305_07`, `20260305_08`)
+  - `docker run --rm --network agentmobile_internal -e DATABASE_URL=... -v /root/agentmobile/backend:/app -w /app agentmobile-backend alembic upgrade heads` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -445,9 +445,9 @@ EOF
   - `auth_attempts.key` is canonical/authoritative lookup with unique index.
   - `auth_attempts` also stores nullable `email` and `ip` fields for reporting/debug.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
-  - `docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_02` -> `20260305_03`)
-  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260305_03 (head)`)
+  - `cd backend && python3 -m compileall app alembic` ✅
+  - `docker compose run --rm --build backend alembic upgrade head` ✅ (upgraded `20260305_02` -> `20260305_03`)
+  - `docker compose run --rm backend alembic current` ✅ (`20260305_03 (head)`)
 - Commit: `fd4f186` - feat(db): add sessions and auth_attempts schema for session auth fallback
 - Push: `origin/master` updated successfully (to `32c1817`)
 - Deploy status:
@@ -471,8 +471,8 @@ EOF
   - User requested scaffold plus basic UI now.
   - Server-component implementation is acceptable; session redirect behavior is implemented using conservative cookie-key checks until backend auth naming is finalized.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -494,9 +494,9 @@ EOF
     - `heartbeat_runs.heartbeat_job_id -> heartbeat_jobs.id` with `ON DELETE CASCADE`
   - Minimal SQLAlchemy models are added now for job/schedule/run tables without relationship wiring.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
-  - `cd /root/codexchat && docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_04` -> `20260305_05`)
-  - `cd /root/codexchat && docker compose run --rm codexchat_back alembic current` ✅ (`20260305_05 (head)`)
+  - `cd backend && python3 -m compileall app alembic` ✅
+  - `cd /root/agentmobile && docker compose run --rm --build backend alembic upgrade head` ✅ (upgraded `20260305_04` -> `20260305_05`)
+  - `cd /root/agentmobile && docker compose run --rm backend alembic current` ✅ (`20260305_05 (head)`)
 - Commit: `54283a0` - feat(db): add heartbeat jobs, schedules, and runs schema
 - Push: `origin/master` updated successfully (`290a97f` -> `54283a0`)
 - Deploy status:
@@ -521,9 +521,9 @@ EOF
   - `settings` includes `updated_at` and nullable `updated_by_user_id`, plus DB checks for `upload_limit_mb_default >= 1` and `heartbeat_cap_default >= 1`.
   - `audit_logs` includes requested fields plus `request_id` and `ip` for investigations, with flexible `metadata_json` JSONB payload.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
-  - `docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_03` -> `20260305_04`)
-  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260305_04 (head)`)
+  - `cd backend && python3 -m compileall app alembic` ✅
+  - `docker compose run --rm --build backend alembic upgrade head` ✅ (upgraded `20260305_03` -> `20260305_04`)
+  - `docker compose run --rm backend alembic current` ✅ (`20260305_04 (head)`)
 - Commit: `eb0792c` - feat(db): add settings and audit logs schema with guarded defaults
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -548,9 +548,9 @@ EOF
   - `created_at` and `updated_at` use `TIMESTAMPTZ NOT NULL DEFAULT now()`.
   - `updated_at` is maintained in DB via trigger (implemented for tables that include an `updated_at` column in this section).
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
-  - `docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_01` -> `20260305_02`)
-  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260305_02 (head)`)
+  - `cd backend && python3 -m compileall app alembic` ✅
+  - `docker compose run --rm --build backend alembic upgrade head` ✅ (upgraded `20260305_01` -> `20260305_02`)
+  - `docker compose run --rm backend alembic current` ✅ (`20260305_02 (head)`)
 - Commit: `db86e53` - feat(db): add core shared schema tables with UUID keys and timestamp triggers
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -566,16 +566,16 @@ EOF
 - Date: 2026-03-05
 - Task completed: docs/TODO/dbTODO.md :: 0) Foundation and Tooling
 - Questions asked:
-  1) Should I implement this in the existing backend service at `codexchat_back` (SQLAlchemy + Alembic there)?
+  1) Should I implement this in the existing backend service at `backend` (SQLAlchemy + Alembic there)?
   2) For startup DB connectivity, do you want hard fail on app boot if DB is unreachable?
   3) Should I add a short DB workflow doc under `docs/` as part of the “baseline and versioning workflow docs” item?
 - Assumptions:
-  - User approved implementing DB foundation in `codexchat_back`.
+  - User approved implementing DB foundation in `backend`.
   - API startup should fail fast when DB connectivity check fails.
   - Migration baseline/versioning workflow documentation is included in `docs/dbMigrations.md`.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
-  - `cd /root/codexchat && docker compose config` ✅
+  - `cd backend && python3 -m compileall app alembic` ✅
+  - `cd /root/agentmobile && docker compose config` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -594,7 +594,7 @@ EOF
   - Default logs are structured JSON with `LOG_PRETTY` env toggle for local human-readable output.
   - Health paths are implemented as `/api/health` (API) and `/health` (worker).
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `cd backend && python3 -m compileall app alembic` ✅
   - `docker compose config` ✅
 - Commit: `42b374f` - feat(backend): bootstrap modular api/worker services with shared config and structured logging
 - Push: `origin/master` updated successfully
@@ -604,8 +604,8 @@ EOF
 - Smoke check status:
   - `https://todo.flounderboard.com/` ✅ (HTTP 200)
   - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
-  - WebSocket handshake to `wss://todo.flounderboard.com/ws` ✅ (from `codexchat_back` container with Python `websockets`)
-  - `codexchat_worker` health (`http://127.0.0.1:8001/health` inside container) ✅
+  - WebSocket handshake to `wss://todo.flounderboard.com/ws` ✅ (from `backend` container with Python `websockets`)
+  - `worker` health (`http://127.0.0.1:8001/health` inside container) ✅
 - Notes/blockers:
   - Initial API/WS smoke briefly returned `502` during service restart; both passed after startup stabilization.
 
@@ -621,8 +621,8 @@ EOF
   - Error envelopes must use stable `code`, always include `request_id`, and keep `details` consistently as an object.
   - `AUTH_INVALID`, `RATE_LIMITED`, `VALIDATION_ERROR`, `NOT_FOUND`, and `INTERNAL` are treated as stable baseline codes.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app` ✅
-  - `cd codexchat_back && python3 -m compileall alembic` ✅
+  - `cd backend && python3 -m compileall app` ✅
+  - `cd backend && python3 -m compileall alembic` ✅
 - Commit:
   - `f018029` - feat(backend): enforce /api and authenticated /ws contract with standard errors
   - `c57126d` - fix(backend): apply error envelope to framework 404/405 responses
@@ -637,7 +637,7 @@ EOF
   - `wss://todo.flounderboard.com/ws` ✅ reachable and auth-enforced (`HTTP 403` on unauthenticated upgrade)
 - Notes/blockers:
   - First smoke attempt briefly returned `502` while Traefik/backend routing converged after container recreation; subsequent retries were stable and passing.
-  - Websocket auth in this section uses a transitional cookie format (`codexchat_session` as user UUID) until full signed session persistence is implemented in section 2.
+  - Websocket auth in this section uses a transitional cookie format (`agentmobile_session` as user UUID) until full signed session persistence is implemented in section 2.
 
 - Date: 2026-03-05
 - Task completed: docs/TODO/frontendTODO.md :: 1) Routing and App Shell (remaining items)
@@ -650,8 +650,8 @@ EOF
   - Non-admin access to `/settings/admin` should be redirected to `/settings`.
   - Logout should call backend `/api/auth/logout`, expire frontend session cookies, and redirect to `/login?logged_out=1`.
 - Validation commands/results:
-  - `cd codexchat_front && timeout 180 npm run lint` ✅
-  - `cd codexchat_front && npm run build` ⚠️ hangs in this environment during optimized production build (multiple retries; process remained active without completion output, manually terminated).
+  - `cd frontend && timeout 180 npm run lint` ✅
+  - `cd frontend && npm run build` ⚠️ hangs in this environment during optimized production build (multiple retries; process remained active without completion output, manually terminated).
 - Commit:
 - Push:
 - Deploy status: assumed completed by operator per user note (containers rebuilt/restarted externally during this run).
@@ -670,9 +670,9 @@ EOF
   - Stale recovery uses `owner_token` compare-and-release plus `last_heartbeat_at` heartbeats; stale threshold is TTL-based.
   - Migration documentation includes schema changes, TTL defaults, recovery procedure, and required lock indexes.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
-  - `docker compose run --rm --build codexchat_back alembic upgrade head` ✅ (upgraded `20260305_05` -> `20260305_06`)
-  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260305_06 (head)`)
+  - `cd backend && python3 -m compileall app alembic` ✅
+  - `docker compose run --rm --build backend alembic upgrade head` ✅ (upgraded `20260305_05` -> `20260305_06`)
+  - `docker compose run --rm backend alembic current` ✅ (`20260305_06 (head)`)
 - Commit: `05a5724` - feat(db): add conversation locks schema with stale recovery tokens
 - Push: `origin/master` updated successfully (`efac14f` -> `05a5724`)
 - Deploy status:
@@ -696,24 +696,24 @@ EOF
   - MVP validation scope uses filesystem/build-output checks plus HTTP 200 smoke checks; real iOS install testing is deferred.
   - Added automated icon verification script parses `site.webmanifest`, validates referenced files exist, checks required icon files/metadata references, and supports optional HTTP endpoint verification.
 - Validation commands/results:
-  - `cd codexchat_front && npm run check:icons` ✅
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
-  - `cd codexchat_front && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next dev` ✅
-  - `cd codexchat_front && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next start` ✅
+  - `cd frontend && npm run check:icons` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
+  - `cd frontend && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next dev` ✅
+  - `cd frontend && npm run check:icons -- --base-url=http://127.0.0.1:3000` against local `next start` ✅
 - Commit:
   - `fe12622` - feat(frontend): verify branding icons and add automated favicon/manifest checks
   - `5b02c58` - fix(frontend): install libc6-compat in alpine image for Next.js SWC
 - Push: `origin/master` updated successfully (`877ba2e` -> `5b02c58`)
 - Deploy status:
-  - initial `docker compose build` failed on `codexchat_front` due missing Alpine glibc compatibility for Next.js SWC (`ld-linux-x86-64.so.2`)
+  - initial `docker compose build` failed on `frontend` due missing Alpine glibc compatibility for Next.js SWC (`ld-linux-x86-64.so.2`)
   - follow-up deploy after Dockerfile fix succeeded: `docker compose build` ✅ and `docker compose up -d` ✅
 - Smoke check status:
   - `https://todo.flounderboard.com/` ✅ (HTTP 200)
   - `https://todo.flounderboard.com/api/health` ✅ (HTTP 200)
   - websocket route `/ws` ✅ reachable/auth-enforced (`HTTP 403` with HTTP/1.1 websocket upgrade probe)
   - icon assets ✅ (HTTP 200): `/favicon.ico`, `/favicon.svg`, `/favicon-96x96.png`, `/apple-touch-icon.png`, `/site.webmanifest`, `/web-app-manifest-192x192.png`, `/web-app-manifest-512x512.png`
-  - `cd codexchat_front && npm run check:icons -- --base-url=https://todo.flounderboard.com` ✅
+  - `cd frontend && npm run check:icons -- --base-url=https://todo.flounderboard.com` ✅
 - Notes/blockers:
   - `docs/TODO/frontendTODO.md` contained unrelated pre-existing unstaged changes in section `2)`; commit staging was narrowed to only section `2.1)` updates for this run.
 
@@ -730,11 +730,11 @@ EOF
   - Lockout counters prefer Redis when reachable and fall back to Postgres when Redis is unavailable.
   - Argon2id is the only active password hashing backend and must be importable at startup.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app` ✅
-  - `cd codexchat_back && python3 -m compileall alembic` ✅
-  - `cd codexchat_back && python3 - <<'PY' ... PY` ⚠️ failed locally (`ModuleNotFoundError: argon2`) because host Python env is missing deps
-  - `docker compose run --rm codexchat_back python -m compileall app` ✅
-  - `docker compose run --rm codexchat_back python - <<'PY' from app.main import app ... PY` ✅ (`startup_import_ok True`)
+  - `cd backend && python3 -m compileall app` ✅
+  - `cd backend && python3 -m compileall alembic` ✅
+  - `cd backend && python3 - <<'PY' ... PY` ⚠️ failed locally (`ModuleNotFoundError: argon2`) because host Python env is missing deps
+  - `docker compose run --rm backend python -m compileall app` ✅
+  - `docker compose run --rm backend python - <<'PY' from app.main import app ... PY` ✅ (`startup_import_ok True`)
 - Commit: `3ec2bde` - feat(backend): implement secure sessions, csrf, argon2 auth, and lockout controls
 - Push: `origin/master` updated successfully (`36c222f` -> `3ec2bde`)
 - Deploy status:
@@ -760,10 +760,10 @@ EOF
   - `scripts/create_user.py` supports flags-first flow and interactive fallback only when TTY is available.
   - Public registration is disabled by default and enabled only when `ENABLE_PUBLIC_REGISTRATION=true`.
 - Validation commands/results:
-  - `docker compose run --rm codexchat_back python -m compileall app scripts` ✅
-  - `docker compose run --rm -T codexchat_back python scripts/create_user.py --help` ✅
-  - `docker compose run --rm -T codexchat_back python scripts/db_seed.py` ✅ (`{"seeded_admin": false, "seeded_settings": false}`)
-  - `docker compose run --rm -T codexchat_back python -c "from app.main import app; print('app_ok', len(app.routes))"` ✅ (`app_ok 15`)
+  - `docker compose run --rm backend python -m compileall app scripts` ✅
+  - `docker compose run --rm -T backend python scripts/create_user.py --help` ✅
+  - `docker compose run --rm -T backend python scripts/db_seed.py` ✅ (`{"seeded_admin": false, "seeded_settings": false}`)
+  - `docker compose run --rm -T backend python -c "from app.main import app; print('app_ok', len(app.routes))"` ✅ (`app_ok 15`)
 - Commit:
 - Push:
 - Deploy status:
@@ -782,8 +782,8 @@ EOF
   - Use live backend conversations endpoint; allow dev fallback mock only when API is unreachable and `NEXT_PUBLIC_USE_MOCKS=1`.
   - Mobile drawer auto-closes on conversation selection and backdrop tap.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -803,12 +803,12 @@ EOF
   - Rename trims title server-side, rejects empty/whitespace-only with HTTP `400`, and enforces a max title length of 255.
   - Shared visibility model remains global: any authenticated user can list/read/rename conversations without per-user ownership filtering.
 - Validation commands/results:
-  - `docker compose run --rm codexchat_back python -m compileall app` ✅
-  - `docker compose run --rm codexchat_back python -m compileall alembic` ✅
-  - `docker compose build codexchat_back` ✅
-  - `docker compose run --rm -T codexchat_back python - <<'PY' ...` (route registration probe for `/api/conversations*`) ✅
-  - `docker compose run --rm codexchat_back alembic upgrade head` ✅ (upgraded `20260305_09` -> `20260306_10`)
-  - `docker compose run --rm codexchat_back alembic current` ✅ (`20260306_10 (head)`)
+  - `docker compose run --rm backend python -m compileall app` ✅
+  - `docker compose run --rm backend python -m compileall alembic` ✅
+  - `docker compose build backend` ✅
+  - `docker compose run --rm -T backend python - <<'PY' ...` (route registration probe for `/api/conversations*`) ✅
+  - `docker compose run --rm backend alembic upgrade head` ✅ (upgraded `20260305_09` -> `20260306_10`)
+  - `docker compose run --rm backend alembic current` ✅ (`20260306_10 (head)`)
 - Commit:
 - Push:
 - Deploy status:
@@ -827,8 +827,8 @@ EOF
   - Markdown uses `react-markdown` + `remark-gfm`, with a custom fenced code renderer and copy button.
   - Reconnect behavior is automatic exponential backoff with capped interval, then terminal disconnected state plus manual retry.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -863,8 +863,8 @@ EOF
   - Lock TTL/stale recovery window is `120` seconds.
   - WebSocket emits dedicated `thread_busy_state` events for busy-state truth, instead of overloading `error`/`assistant_done`.
 - Validation commands/results:
-  - `python3 -m compileall codexchat_back/app` ✅
-  - `python3 -m compileall codexchat_back/app/domains/chat/websocket.py codexchat_back/app/domains/locks/service.py` ✅
+  - `python3 -m compileall backend/app` ✅
+  - `python3 -m compileall backend/app/domains/chat/websocket.py backend/app/domains/locks/service.py` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -884,8 +884,8 @@ EOF
   - `Enter` sends only for non-whitespace content and only when not busy/locked; `Shift+Enter` always inserts newline.
   - Input text is trimmed only for validation/sending and is not visually trimmed while typing.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -904,7 +904,7 @@ EOF
   - Download authorization follows conversation visibility, not uploader ownership.
   - Oversized uploads are rejected with `413` + `FILE_TOO_LARGE` in the standard JSON error envelope, including max-size details.
 - Validation commands/results:
-  - `cd codexchat_back && python3 -m compileall app alembic` ✅
+  - `cd backend && python3 -m compileall app alembic` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -923,8 +923,8 @@ EOF
   - Frontend file-size validation defaults to 15 MB and is replaced by live `/api/settings` value when available.
   - Backend remains source of truth for upload limit enforcement.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit: `71fb1c0` - feat(frontend): implement file attachments UX in chat composer and timeline
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -949,9 +949,9 @@ EOF
   - Empty query immediately resets the sidebar to the latest `/api/conversations` ordering.
   - Selected conversation in the main pane remains source-of-truth across search clear/reset transitions.
 - Validation commands/results:
-  - `cd codexchat_front && timeout 600s npm run lint` ✅
-  - `cd codexchat_front && timeout 240s npx tsc --noEmit` ✅
-  - `cd codexchat_front && timeout 420s npm run build` ✅
+  - `cd frontend && timeout 600s npm run lint` ✅
+  - `cd frontend && timeout 240s npx tsc --noEmit` ✅
+  - `cd frontend && timeout 420s npm run build` ✅
 - Commit:
 - Push:
 - Deploy status:
@@ -970,9 +970,9 @@ EOF
   - Conversation selection uses a searchable dropdown and does not expose manual conversation ID entry in normal UI.
   - Main list stays compact and shows latest run status/time, while a lightweight `View runs` modal provides status/timestamps/errors from API-provided recent runs.
 - Validation commands/results:
-  - `cd codexchat_front && timeout 300s npm run lint` ✅
-  - `cd codexchat_front && timeout 240s npx tsc --noEmit` ✅
-  - `cd codexchat_front && timeout 420s npm run build` ✅
+  - `cd frontend && timeout 300s npm run lint` ✅
+  - `cd frontend && timeout 240s npx tsc --noEmit` ✅
+  - `cd frontend && timeout 420s npm run build` ✅
 - Commit: `c4d340e` - feat(frontend): add dedicated heartbeat jobs route with CRUD and run history UI
 - Push: `origin/master` updated successfully
 - Deploy status:
@@ -997,8 +997,8 @@ EOF
   - High-risk confirmations include enabling/disabling users and deleting heartbeat jobs; YOLO enable keeps explicit modal confirmation.
   - YOLO warning should be both one-time confirm modal at selection and persistent warning when active.
 - Validation commands/results:
-  - `cd codexchat_front && npm run lint` ✅
-  - `cd codexchat_front && npm run build` ✅
+  - `cd frontend && npm run lint` ✅
+  - `cd frontend && npm run build` ✅
 - Commit:
 - Push:
 - Deploy status:

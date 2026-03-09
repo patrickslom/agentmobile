@@ -1,4 +1,4 @@
-# Memory Plan (CodexChat)
+# Memory Plan (AGENTMOBILE)
 
 ## Goal
 Create a simple, durable memory system using markdown files that supports:
@@ -14,17 +14,17 @@ Create a simple, durable memory system using markdown files that supports:
 
 ## Proposed File Layout
 ```text
-/root/codexchat/AGENTS.md
-/root/codexchat/docs/memory/README.md
-/root/codexchat/docs/memory/GLOBAL.md
-/root/codexchat/docs/memory/DECISIONS.md
-/root/codexchat/docs/memory/OPERATIONS.md
-/root/codexchat/docs/memory/projects/<project-slug>/INDEX.md
-/root/codexchat/docs/memory/projects/<project-slug>/DECISIONS.md
-/root/codexchat/docs/memory/projects/<project-slug>/TASKS.md
-/root/codexchat/docs/memory/projects/<project-slug>/HANDOFF.md
-/root/codexchat/docs/memory/templates/ADR_TEMPLATE.md
-/root/codexchat/docs/memory/templates/HANDOFF_TEMPLATE.md
+/root/agentmobile/AGENTS.md
+/root/agentmobile/docs/memory/README.md
+/root/agentmobile/docs/memory/GLOBAL.md
+/root/agentmobile/docs/memory/DECISIONS.md
+/root/agentmobile/docs/memory/OPERATIONS.md
+/root/agentmobile/docs/memory/projects/<project-slug>/INDEX.md
+/root/agentmobile/docs/memory/projects/<project-slug>/DECISIONS.md
+/root/agentmobile/docs/memory/projects/<project-slug>/TASKS.md
+/root/agentmobile/docs/memory/projects/<project-slug>/HANDOFF.md
+/root/agentmobile/docs/memory/templates/ADR_TEMPLATE.md
+/root/agentmobile/docs/memory/templates/HANDOFF_TEMPLATE.md
 ```
 
 ## What Goes Where

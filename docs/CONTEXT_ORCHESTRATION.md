@@ -1,7 +1,7 @@
 # Context Orchestration Plan
 
 ## Goal
-Define how CodexChat should coordinate project selection, memory loading, and memory writing so behavior is reliable, safe, and easy to understand.
+Define how AGENTMOBILE should coordinate project selection, memory loading, and memory writing so behavior is reliable, safe, and easy to understand.
 
 ## Core Principle
 Do not rely on prompt instructions alone.

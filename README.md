@@ -1,19 +1,19 @@
 <p align="center">
-  <img src="codexchat_front/public/brand/gnome-default.png" alt="Codex Chat logo" width="240" />
+  <img src="frontend/public/brand/gnome-default.png" alt="AGENTMOBILE logo" width="240" />
 </p>
 
-# Codex Chat MVP
+# AGENTMOBILE MVP
 
 Self-hosted ChatGPT-style web app for running Codex on your VPS.
 
 ## Project Info
 
-- GitHub repository: `https://github.com/patrickslom/codexchat`
+- GitHub repository: `https://github.com/patrickslom/agentmobile`
 
 ## Current Landing Page Copy
 
-- Headline: `From fresh VPS to live Codex chat in minutes.`
-- Supporting copy: `Run the installer, open your domain, log in, and start streaming Codex responses from desktop or phone.`
+- Headline: `From fresh VPS to live Mobile chat in minutes.`
+- Supporting copy: `Run the installer, open your domain, log in, and start streaming Agent responses from desktop or phone.`
 - Supporting copy: `No Telegram flow. Just a clean web app for real chat workflows and file-based collaboration.`
 
 ## Warning
@@ -49,10 +49,10 @@ Core principles:
 - modular architecture (`web`, `api`, `db`, optional `redis`, optional `worker`)
 
 Default service/container names:
-- `codexchat_front` (frontend)
-- `codexchat_back` (backend)
-- `codexchat_db` (postgres)
-- optional: `codexchat_redis`, `codexchat_worker`
+- `frontend` (frontend)
+- `backend` (backend)
+- `db` (postgres)
+- optional: `agentmobile_redis`, `worker`
 
 ## Requirements
 
@@ -68,7 +68,7 @@ Default service/container names:
 One-liner install:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/patrickslom/codexchat/master/scripts/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/patrickslom/agentmobile/master/scripts/install.sh)
 ```
 
 Manual install:
@@ -103,7 +103,7 @@ What `./scripts/setup.sh` does:
 - starts containers (if compose file exists)
 
 What `./scripts/install.sh` does:
-- clones/updates the repo to `~/codexchat` by default
+- clones/updates the repo to `~/agentmobile` by default
 - then launches `./scripts/setup.sh`
 
 ## .env keys (minimum)
@@ -144,10 +144,10 @@ User management defaults:
 - Admin creates additional users from the web interface (`Settings -> Admin`).
 - New users should be forced to reset password on first login.
 - Admin temporary reset endpoint: `POST /api/admin/users/:id/temporary-password` (generates a one-time temporary password, forces reset on next login, and revokes active sessions).
-- SSH fallback for manual provisioning: `docker compose exec codexchat_back python scripts/create_user.py --email user@example.com --password 'change-me' --role user`
+- SSH fallback for manual provisioning: `docker compose exec backend python scripts/create_user.py --email user@example.com --password 'change-me' --role user`
 
 Managed Traefik installer:
-- `./scripts/install-traefik.sh` installs a minimal Traefik stack (`codexchat_traefik`)
+- `./scripts/install-traefik.sh` installs a minimal Traefik stack (`agentmobile_traefik`)
 - creates/uses your external Traefik network
 - configures Let's Encrypt using `TRAEFIK_ACME_EMAIL`
 
@@ -159,7 +159,7 @@ Managed Codex installer:
 One-liner bootstrap installer:
 - `./scripts/install.sh` is the script used by the `curl | bash` installation path
 - supports overrides:
-  - `CODEXCHAT_DIR` for install location
+  - `AGENTMOBILE_DIR` for install location
   - `REPO_URL` for custom fork
   - `BRANCH` for non-master install
 
@@ -186,7 +186,7 @@ When editing directly on the server, use:
 ```
 
 This defaults to `quick` mode:
-- runs `codexchat_front` with `next dev`
+- runs `frontend` with `next dev`
 - bind-mounts the frontend source into the container
 - avoids the full production image rebuild for normal UI changes
 
@@ -219,7 +219,7 @@ Codex integration model:
 - One active Codex run is allowed per conversation/thread at a time (lock/queue behavior).
 
 Host runtime mode:
-- Default (`CODEX_RUNTIME_TARGET=container`) runs Codex inside `codexchat_back` container namespace.
+- Default (`CODEX_RUNTIME_TARGET=container`) runs Codex inside `backend` container namespace.
 - Set `CODEX_RUNTIME_TARGET=host` to launch Codex inside host namespaces via `nsenter` (lets Codex see host services such as `systemd`/`fail2ban`).
 - Compose config for backend/worker uses `pid: host` + `CAP_SYS_ADMIN` so host mode can enter target namespaces.
 
