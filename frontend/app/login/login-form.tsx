@@ -140,7 +140,7 @@ export default function LoginForm() {
   return (
     <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
       <label className="flex flex-col gap-2 text-sm">
-        <span className="font-medium text-zinc-800 dark:text-zinc-200">Email</span>
+        <span className="font-semibold text-foreground">Email</span>
         <input
           type="email"
           name="email"
@@ -148,12 +148,13 @@ export default function LoginForm() {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-foreground"
+          placeholder="you@example.com"
+          className="w-full appearance-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 shadow-sm outline-none transition placeholder:text-zinc-500 focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/10 sm:text-sm"
         />
       </label>
 
       <label className="flex flex-col gap-2 text-sm">
-        <span className="font-medium text-zinc-800 dark:text-zinc-200">Password</span>
+        <span className="font-semibold text-foreground">Password</span>
         <input
           type="password"
           name="password"
@@ -161,12 +162,13 @@ export default function LoginForm() {
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground outline-none transition focus:border-foreground"
+          placeholder="Enter your password"
+          className="w-full appearance-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 shadow-sm outline-none transition placeholder:text-zinc-500 focus:border-zinc-950 focus:ring-2 focus:ring-zinc-950/10 sm:text-sm"
         />
       </label>
 
       {errorMessage ? (
-        <p className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200">
+        <p className="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
           {errorMessage}
         </p>
       ) : null}

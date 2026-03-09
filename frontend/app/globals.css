@@ -61,6 +61,32 @@ body {
   line-height: 1.5;
 }
 
+input,
+textarea,
+select {
+  color: var(--foreground);
+  caret-color: var(--foreground);
+  -webkit-text-fill-color: var(--foreground);
+  opacity: 1;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted-foreground);
+  opacity: 1;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  box-shadow: 0 0 0 1000px var(--background) inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
 a:not([class]) {
   color: inherit;
 }
@@ -88,6 +114,15 @@ p {
 
 .text-balance {
   text-wrap: balance;
+}
+
+.login-page,
+.login-card,
+.login-card input,
+.login-card textarea,
+.login-card select,
+.login-card button {
+  color-scheme: light;
 }
 
 h1,

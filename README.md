@@ -2,7 +2,7 @@
   <img src="frontend/public/brand/gnome-default.png" alt="AGENTMOBILE logo" width="240" />
 </p>
 
-# AGENTMOBILE MVP
+# AGENTMOBILE
 
 Self-hosted ChatGPT-style web app for running Codex on your VPS.
 
