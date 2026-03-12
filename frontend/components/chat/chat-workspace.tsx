@@ -30,6 +30,7 @@ import type {
   ChatRole,
   ConversationBusyEvent,
   MessageCreatedEvent,
+  WorkspaceFileRef,
 } from "@/types/chat";
 
 type ApiConversation = {
@@ -61,6 +62,7 @@ type ApiConversationMessage = {
   metadata_json?: {
     partial?: unknown;
     turn_status?: unknown;
+    workspace_refs?: unknown;
   };
 };
 
@@ -106,6 +108,23 @@ type UploadedFileResponse = {
 type AttachmentDraft = {
   id: string;
   file: File;
+};
+
+type ComposerWorkspaceFileRef = WorkspaceFileRef & {
+  id: string;
+  invalid?: boolean;
+};
+
+type WorkspaceBrowseItem = {
+  relativePath: string;
+  displayName: string;
+  isDirectory: boolean;
+};
+
+type WorkspaceSearchResult = {
+  kind: "workspace";
+  relativePath: string;
+  displayName: string;
 };
 
 const DEFAULT_UPLOAD_LIMIT_MB = 15;
@@ -247,6 +266,32 @@ function normalizeMessageFile(item: ApiMessageFile): ChatMessageFile | null {
   };
 }
 
+function normalizeWorkspaceFileRef(value: unknown): WorkspaceFileRef | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as {
+    kind?: unknown;
+    relative_path?: unknown;
+    relativePath?: unknown;
+    display_name?: unknown;
+    displayName?: unknown;
+  };
+
+  const relativePath = normalizeStringField(item.relative_path ?? item.relativePath);
+  const displayName = normalizeStringField(item.display_name ?? item.displayName);
+  if (!relativePath || !displayName) {
+    return null;
+  }
+
+  return {
+    kind: item.kind === "workspace" ? "workspace" : "workspace",
+    relativePath,
+    displayName,
+  };
+}
+
 function normalizeStringField(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
@@ -342,6 +387,11 @@ function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
       ? item.files
           .map((fileItem) => normalizeMessageFile(fileItem as ApiMessageFile))
           .filter((fileItem): fileItem is ChatMessageFile => Boolean(fileItem))
+      : [],
+    workspaceRefs: Array.isArray(item.metadata_json?.workspace_refs)
+      ? item.metadata_json.workspace_refs
+          .map((refItem) => normalizeWorkspaceFileRef(refItem))
+          .filter((refItem): refItem is WorkspaceFileRef => Boolean(refItem))
       : [],
   };
 }
@@ -639,6 +689,30 @@ function normalizePendingAssistantOrder(messages: ChatMessage[]): ChatMessage[] 
   return next;
 }
 
+function insertWorkspaceRefMentions(
+  value: string,
+  refs: WorkspaceFileRef[],
+  insertionIndex: number | null,
+): string {
+  if (refs.length === 0) {
+    return value;
+  }
+
+  const mentionText = refs.map((ref) => `@${ref.displayName}`).join(" ");
+  const suffix = value.trim().length > 0 ? " " : "";
+  if (
+    insertionIndex !== null &&
+    insertionIndex >= 0 &&
+    insertionIndex < value.length &&
+    value[insertionIndex] === "@"
+  ) {
+    const nextValue = `${value.slice(0, insertionIndex)}${mentionText}${value.slice(insertionIndex + 1)}`;
+    return nextValue.includes(`${mentionText} `) ? nextValue : `${nextValue}${suffix}`;
+  }
+
+  return `${value}${suffix}${mentionText}`.trim();
+}
+
 export default function ChatWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -668,7 +742,19 @@ export default function ChatWorkspace() {
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [composerValue, setComposerValue] = useState("");
   const [attachmentDrafts, setAttachmentDrafts] = useState<AttachmentDraft[]>([]);
+  const [workspaceRefDrafts, setWorkspaceRefDrafts] = useState<ComposerWorkspaceFileRef[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [workspaceRefError, setWorkspaceRefError] = useState<string | null>(null);
+  const [isWorkspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const [workspacePickerMode, setWorkspacePickerMode] = useState<"scope" | "picker">("scope");
+  const [workspacePickerFocusSearch, setWorkspacePickerFocusSearch] = useState(false);
+  const [workspacePickerDirectoryPath, setWorkspacePickerDirectoryPath] = useState("");
+  const [workspacePickerItems, setWorkspacePickerItems] = useState<WorkspaceBrowseItem[]>([]);
+  const [workspacePickerQuery, setWorkspacePickerQuery] = useState("");
+  const [workspacePickerResults, setWorkspacePickerResults] = useState<WorkspaceSearchResult[]>([]);
+  const [workspacePickerPendingPaths, setWorkspacePickerPendingPaths] = useState<string[]>([]);
+  const [workspacePickerError, setWorkspacePickerError] = useState<string | null>(null);
+  const [isWorkspacePickerLoading, setWorkspacePickerLoading] = useState(false);
   const [isUploadingAttachments, setUploadingAttachments] = useState(false);
   const [uploadLimitMb, setUploadLimitMb] = useState(DEFAULT_UPLOAD_LIMIT_MB);
   const [sendErrorByConversationId, setSendErrorByConversationId] = useState<Record<string, string | null>>({});
@@ -682,9 +768,12 @@ export default function ChatWorkspace() {
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const workspaceSearchInputRef = useRef<HTMLInputElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const conversationsRef = useRef<ConversationItem[]>([]);
   const sidebarRefreshTimersRef = useRef<Record<string, number[]>>({});
+  const fileRefTriggerIndexRef = useRef<number | null>(null);
   const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
   const wsResolution = useMemo(() => {
     if (!hasMounted) {
@@ -907,10 +996,15 @@ export default function ChatWorkspace() {
 
         const payload = (await response.json()) as unknown;
         const detail = extractConversationDetail(payload);
-        setMessagesByConversationId((previous) => ({
-          ...previous,
-          [conversationId]: mergeMessagesById(detail.messages),
-        }));
+        setMessagesByConversationId((previous) => {
+          const localPendingMessages = (previous[conversationId] ?? []).filter(
+            (message) => Boolean(message.deliveryStatus) || Boolean(message.pending),
+          );
+          return {
+            ...previous,
+            [conversationId]: mergeMessagesById([...detail.messages, ...localPendingMessages]),
+          };
+        });
       } catch {
         setTimelineError("Unable to load messages for this conversation.");
       } finally {
@@ -1241,10 +1335,315 @@ export default function ChatWorkspace() {
     setAttachmentError(null);
   }, []);
 
+  const fetchWorkspaceDirectory = useCallback(async (relativePath: string) => {
+    const query = relativePath ? `?path=${encodeURIComponent(relativePath)}` : "";
+    const response = await fetch(`${apiBaseUrl}/workspace/files/browse${query}`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error("Unable to load workspace directory");
+    }
+
+    const payload = await response.json() as {
+      path?: unknown;
+      items?: Array<{
+        relative_path?: unknown;
+        display_name?: unknown;
+        is_directory?: unknown;
+      }>;
+    };
+
+    return {
+      path: typeof payload.path === "string" ? payload.path : "",
+      items: Array.isArray(payload.items)
+        ? payload.items
+            .map((item) => {
+              if (!item || typeof item !== "object") {
+                return null;
+              }
+
+              const relativePathValue =
+                typeof item.relative_path === "string" ? item.relative_path : null;
+              const displayNameValue =
+                typeof item.display_name === "string" ? item.display_name : null;
+              const isDirectoryValue = item.is_directory === true;
+              if (!relativePathValue || !displayNameValue) {
+                return null;
+              }
+
+              return {
+                relativePath: relativePathValue,
+                displayName: displayNameValue,
+                isDirectory: isDirectoryValue,
+              };
+            })
+            .filter((item): item is WorkspaceBrowseItem => Boolean(item))
+        : [],
+    };
+  }, [apiBaseUrl]);
+
+  const searchWorkspaceFiles = useCallback(async (query: string, relativePath: string) => {
+    const params = new URLSearchParams({ q: query, limit: "40" });
+    if (relativePath) {
+      params.set("path", relativePath);
+    }
+
+    const response = await fetch(`${apiBaseUrl}/workspace/files/search?${params.toString()}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Unable to search workspace files");
+    }
+
+    const payload = await response.json() as {
+      items?: Array<{
+        kind?: unknown;
+        relative_path?: unknown;
+        display_name?: unknown;
+      }>;
+    };
+
+    return Array.isArray(payload.items)
+      ? payload.items
+          .map((item) => normalizeWorkspaceFileRef(item))
+          .filter((item): item is WorkspaceSearchResult => Boolean(item))
+      : [];
+  }, [apiBaseUrl]);
+
+  const resolveWorkspaceFiles = useCallback(async (relativePaths: string[]) => {
+    const response = await fetch(`${apiBaseUrl}/workspace/files/resolve`, {
+      method: "POST",
+      credentials: "include",
+      headers: withCsrfHeader({
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        relative_paths: relativePaths,
+      }),
+    });
+
+    const payload = await response.json().catch(() => null) as {
+      items?: unknown;
+      error?: {
+        message?: string;
+        details?: {
+          invalid_relative_paths?: unknown;
+        };
+      };
+      message?: string;
+      details?: {
+        invalid_relative_paths?: unknown;
+      };
+    } | null;
+
+    if (!response.ok) {
+      const invalidRelativePaths = Array.isArray(payload?.error?.details?.invalid_relative_paths)
+        ? payload?.error?.details?.invalid_relative_paths
+        : Array.isArray(payload?.details?.invalid_relative_paths)
+          ? payload?.details?.invalid_relative_paths
+          : [];
+      throw {
+        message:
+          payload?.error?.message ??
+          payload?.message ??
+          "One or more selected workspace files are unavailable.",
+        invalidRelativePaths: invalidRelativePaths.filter(
+          (item): item is string => typeof item === "string",
+        ),
+      };
+    }
+
+    return Array.isArray(payload?.items)
+      ? payload.items
+          .map((item) => normalizeWorkspaceFileRef(item))
+          .filter((item): item is WorkspaceFileRef => Boolean(item))
+      : [];
+  }, [apiBaseUrl]);
+
+  const loadWorkspacePickerDirectory = useCallback(async (
+    relativePath: string,
+    options?: {
+      focusSearch?: boolean;
+    },
+  ) => {
+    const focusSearch = options?.focusSearch ?? false;
+    setWorkspacePickerLoading(true);
+    setWorkspacePickerError(null);
+    try {
+      const result = await fetchWorkspaceDirectory(relativePath);
+      setWorkspacePickerDirectoryPath(result.path);
+      setWorkspacePickerItems(result.items);
+      setWorkspacePickerMode("picker");
+      setWorkspacePickerFocusSearch(focusSearch);
+    } catch (error) {
+      setWorkspacePickerError(error instanceof Error ? error.message : "Unable to load workspace directory.");
+    } finally {
+      setWorkspacePickerLoading(false);
+    }
+  }, [fetchWorkspaceDirectory]);
+
+  const openWorkspacePicker = useCallback((focusSearch: boolean) => {
+    setWorkspacePickerOpen(true);
+    setWorkspacePickerError(null);
+    setWorkspacePickerQuery("");
+    setWorkspacePickerResults([]);
+    setWorkspacePickerPendingPaths([]);
+    setWorkspacePickerMode("scope");
+    setWorkspacePickerFocusSearch(focusSearch);
+  }, []);
+
+  const closeWorkspacePicker = useCallback(() => {
+    setWorkspacePickerOpen(false);
+    setWorkspacePickerError(null);
+    setWorkspacePickerQuery("");
+    setWorkspacePickerResults([]);
+    setWorkspacePickerPendingPaths([]);
+    setWorkspacePickerMode("scope");
+    setWorkspacePickerLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isWorkspacePickerOpen || workspacePickerMode !== "picker") {
+      return;
+    }
+
+    if (!workspacePickerFocusSearch) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      workspaceSearchInputRef.current?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [isWorkspacePickerOpen, workspacePickerFocusSearch, workspacePickerMode]);
+
+  useEffect(() => {
+    if (!isWorkspacePickerOpen || workspacePickerMode !== "picker") {
+      return;
+    }
+
+    const trimmedQuery = workspacePickerQuery.trim();
+    if (!trimmedQuery) {
+      setWorkspacePickerResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    setWorkspacePickerLoading(true);
+    setWorkspacePickerError(null);
+
+    const timerId = window.setTimeout(() => {
+      void searchWorkspaceFiles(trimmedQuery, workspacePickerDirectoryPath)
+        .then((results) => {
+          if (cancelled) {
+            return;
+          }
+          setWorkspacePickerResults(results);
+        })
+        .catch((error) => {
+          if (cancelled) {
+            return;
+          }
+          setWorkspacePickerError(error instanceof Error ? error.message : "Unable to search workspace files.");
+          setWorkspacePickerResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setWorkspacePickerLoading(false);
+          }
+        });
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
+  }, [
+    isWorkspacePickerOpen,
+    searchWorkspaceFiles,
+    workspacePickerDirectoryPath,
+    workspacePickerMode,
+    workspacePickerQuery,
+  ]);
+
+  useEffect(() => {
+    if (!isWorkspacePickerOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeWorkspacePicker();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closeWorkspacePicker, isWorkspacePickerOpen]);
+
+  const onRemoveWorkspaceRef = useCallback((refId: string) => {
+    setWorkspaceRefDrafts((previous) => previous.filter((draft) => draft.id !== refId));
+    setWorkspaceRefError(null);
+  }, []);
+
+  const onToggleWorkspacePickerSelection = useCallback((relativePath: string) => {
+    setWorkspacePickerPendingPaths((previous) =>
+      previous.includes(relativePath)
+        ? previous.filter((item) => item !== relativePath)
+        : [...previous, relativePath],
+    );
+  }, []);
+
+  const attachSelectedWorkspaceRefs = useCallback(async () => {
+    if (workspacePickerPendingPaths.length === 0) {
+      setWorkspacePickerError("Select at least one file.");
+      return;
+    }
+
+    try {
+      const resolvedRefs = await resolveWorkspaceFiles(workspacePickerPendingPaths);
+      setWorkspaceRefDrafts((previous) => {
+        const next = [...previous];
+        for (const ref of resolvedRefs) {
+          if (next.some((entry) => entry.relativePath === ref.relativePath)) {
+            continue;
+          }
+          next.push({
+            ...ref,
+            id: createClientMessageId("workspace-ref"),
+            invalid: false,
+          });
+        }
+        return next;
+      });
+      setWorkspaceRefError(null);
+      setComposerValue((previous) => insertWorkspaceRefMentions(previous, resolvedRefs, fileRefTriggerIndexRef.current));
+      fileRefTriggerIndexRef.current = null;
+      closeWorkspacePicker();
+      requestAnimationFrame(() => {
+        composerRef.current?.focus();
+      });
+    } catch (error) {
+      const errorMessage =
+        typeof error === "object" && error && "message" in error && typeof error.message === "string"
+          ? error.message
+          : "Unable to attach selected workspace files.";
+      setWorkspacePickerError(errorMessage);
+    }
+  }, [closeWorkspacePicker, resolveWorkspaceFiles, workspacePickerPendingPaths]);
+
   const appendOptimisticUserMessage = useCallback((
     conversationId: string,
     content: string,
     files: ChatMessageFile[],
+    workspaceRefs: WorkspaceFileRef[],
   ): string => {
     const optimisticId = createClientMessageId("user");
     setMessagesByConversationId((previous) => ({
@@ -1261,6 +1660,7 @@ export default function ChatWorkspace() {
           isCurrentUserAuthor: true,
           createdAt: new Date().toISOString(),
           files,
+          workspaceRefs,
           deliveryStatus: "sending",
         },
       ],
@@ -1713,6 +2113,46 @@ export default function ChatWorkspace() {
         [conversationId]: null,
       }));
       setAttachmentError(null);
+      setWorkspaceRefError(null);
+
+      let resolvedWorkspaceRefs: WorkspaceFileRef[] = [];
+      if (workspaceRefDrafts.length > 0) {
+        try {
+          resolvedWorkspaceRefs = await resolveWorkspaceFiles(
+            workspaceRefDrafts.map((draft) => draft.relativePath),
+          );
+          const validPaths = new Set(resolvedWorkspaceRefs.map((ref) => ref.relativePath));
+          setWorkspaceRefDrafts((previous) =>
+            previous.map((draft) => ({
+              ...draft,
+              invalid: !validPaths.has(draft.relativePath),
+            })),
+          );
+        } catch (error) {
+          const invalidRelativePaths =
+            typeof error === "object" && error && "invalidRelativePaths" in error && Array.isArray(error.invalidRelativePaths)
+              ? error.invalidRelativePaths.filter((item): item is string => typeof item === "string")
+              : [];
+          if (invalidRelativePaths.length > 0) {
+            const invalidSet = new Set(invalidRelativePaths);
+            setWorkspaceRefDrafts((previous) =>
+              previous.map((draft) => ({
+                ...draft,
+                invalid: invalidSet.has(draft.relativePath),
+              })),
+            );
+          }
+          setSendErrorByConversationId((previous) => ({
+            ...previous,
+            [conversationId]:
+              typeof error === "object" && error && "message" in error && typeof error.message === "string"
+                ? error.message
+                : "One or more selected workspace files are unavailable. Remove them and retry.",
+          }));
+          setWorkspaceRefError("Remove unavailable workspace files or pick replacements before sending.");
+          return false;
+        }
+      }
 
       let uploadedFiles: ChatMessageFile[] = [];
       if (attachmentDrafts.length > 0) {
@@ -1730,12 +2170,21 @@ export default function ChatWorkspace() {
         }
       }
 
-      const optimisticId = appendOptimisticUserMessage(conversationId, trimmedContent, uploadedFiles);
+      const optimisticId = appendOptimisticUserMessage(
+        conversationId,
+        trimmedContent,
+        uploadedFiles,
+        resolvedWorkspaceRefs,
+      );
       const sent = sendJsonMessage({
         type: "send_message",
         conversationId,
         content: trimmedContent,
         file_ids: uploadedFiles.map((file) => file.id),
+        file_refs: resolvedWorkspaceRefs.map((ref) => ({
+          kind: ref.kind,
+          relative_path: ref.relativePath,
+        })),
         client_message_id: optimisticId,
       });
 
@@ -1757,6 +2206,8 @@ export default function ChatWorkspace() {
       }));
       setAttachmentDrafts([]);
       setAttachmentError(null);
+      setWorkspaceRefDrafts([]);
+      setWorkspaceRefError(null);
       return true;
     },
     [
@@ -1767,7 +2218,9 @@ export default function ChatWorkspace() {
       ensurePendingAssistantMessage,
       markMessageAsFailed,
       markMessageAsSent,
+      resolveWorkspaceFiles,
       sendJsonMessage,
+      workspaceRefDrafts,
       uploadAttachments,
     ],
   );
@@ -1783,6 +2236,20 @@ export default function ChatWorkspace() {
       setComposerBottomOffset(0);
     }
   }, [composerValue, submitMessage]);
+
+  const onComposerChange = useCallback((nextValue: string) => {
+    setComposerValue(nextValue);
+  }, []);
+
+  const onComposerMentionTrigger = useCallback((cursorIndex: number) => {
+    fileRefTriggerIndexRef.current = cursorIndex;
+    openWorkspacePicker(false);
+  }, [openWorkspacePicker]);
+
+  const onOpenWorkspacePickerFromButton = useCallback(() => {
+    fileRefTriggerIndexRef.current = null;
+    openWorkspacePicker(true);
+  }, [openWorkspacePicker]);
 
   const onRetryFailedMessage = useCallback(async (messageId: string) => {
     const conversationId = selectedConversationId;
@@ -1812,6 +2279,10 @@ export default function ChatWorkspace() {
       conversationId,
       content: failedMessage.content.trim(),
       file_ids: (failedMessage.files ?? []).map((file) => file.id),
+      file_refs: (failedMessage.workspaceRefs ?? []).map((ref) => ({
+        kind: ref.kind,
+        relative_path: ref.relativePath,
+      })),
       client_message_id: failedMessage.clientMessageId ?? failedMessage.id,
     });
 
@@ -2154,8 +2625,10 @@ export default function ChatWorkspace() {
         </main>
         <ComposerPanel
           value={composerValue}
-          setValue={setComposerValue}
+          setValue={onComposerChange}
           onSubmit={onComposerSubmit}
+          onMentionTrigger={onComposerMentionTrigger}
+          onOpenWorkspacePicker={onOpenWorkspacePickerFromButton}
           disabled={!canSubmitComposer}
           interactionLocked={selectedConversationBusy || isCreatingConversation || isUploadingAttachments}
           isCreatingConversation={isCreatingConversation}
@@ -2164,11 +2637,42 @@ export default function ChatWorkspace() {
           hasConfigError={Boolean(wsResolution.error)}
           sendError={selectedSendError}
           selectedAttachments={attachmentDrafts}
+          selectedWorkspaceRefs={workspaceRefDrafts}
           attachmentError={attachmentError}
+          workspaceRefError={workspaceRefError}
           onPickAttachments={onPickAttachments}
           onRemoveAttachment={onRemoveAttachment}
+          onRemoveWorkspaceRef={onRemoveWorkspaceRef}
           bottomOffset={composerBottomOffset}
           sidebarCollapsed={isSidebarCollapsed}
+          composerRef={composerRef}
+        />
+        <WorkspaceFilePicker
+          open={isWorkspacePickerOpen}
+          mode={workspacePickerMode}
+          currentDirectory={workspacePickerDirectoryPath}
+          directoryItems={workspacePickerItems}
+          query={workspacePickerQuery}
+          results={workspacePickerResults}
+          pendingPaths={workspacePickerPendingPaths}
+          loading={isWorkspacePickerLoading}
+          errorMessage={workspacePickerError}
+          searchInputRef={workspaceSearchInputRef}
+          onClose={closeWorkspacePicker}
+          onChooseWorkspaceSearch={() => {
+            void loadWorkspacePickerDirectory("", { focusSearch: true });
+          }}
+          onChooseDirectoryBrowse={() => {
+            void loadWorkspacePickerDirectory("", { focusSearch: false });
+          }}
+          onNavigateDirectory={(relativePath) => {
+            setWorkspacePickerQuery("");
+            setWorkspacePickerResults([]);
+            void loadWorkspacePickerDirectory(relativePath, { focusSearch: false });
+          }}
+          onChangeQuery={setWorkspacePickerQuery}
+          onToggleSelection={onToggleWorkspacePickerSelection}
+          onAttach={attachSelectedWorkspaceRefs}
         />
       </div>
     </div>
@@ -2642,6 +3146,8 @@ type ComposerPanelProps = {
   value: string;
   setValue: (value: string) => void;
   onSubmit: () => Promise<void>;
+  onMentionTrigger: (cursorIndex: number) => void;
+  onOpenWorkspacePicker: () => void;
   disabled: boolean;
   interactionLocked: boolean;
   isCreatingConversation: boolean;
@@ -2650,17 +3156,23 @@ type ComposerPanelProps = {
   hasConfigError: boolean;
   sendError: string | null;
   selectedAttachments: AttachmentDraft[];
+  selectedWorkspaceRefs: ComposerWorkspaceFileRef[];
   attachmentError: string | null;
+  workspaceRefError: string | null;
   onPickAttachments: (files: FileList | null) => void;
   onRemoveAttachment: (attachmentId: string) => void;
+  onRemoveWorkspaceRef: (refId: string) => void;
   bottomOffset: number;
   sidebarCollapsed: boolean;
+  composerRef: React.RefObject<HTMLTextAreaElement | null>;
 };
 
 function ComposerPanel({
   value,
   setValue,
   onSubmit,
+  onMentionTrigger,
+  onOpenWorkspacePicker,
   disabled,
   interactionLocked,
   isCreatingConversation,
@@ -2669,14 +3181,28 @@ function ComposerPanel({
   hasConfigError,
   sendError,
   selectedAttachments,
+  selectedWorkspaceRefs,
   attachmentError,
+  workspaceRefError,
   onPickAttachments,
   onRemoveAttachment,
+  onRemoveWorkspaceRef,
   bottomOffset,
   sidebarCollapsed,
+  composerRef,
 }: ComposerPanelProps) {
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (
+        event.key === "@" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !interactionLocked
+      ) {
+        onMentionTrigger(event.currentTarget.selectionStart);
+      }
+
       if (event.key !== "Enter" || event.shiftKey) {
         return;
       }
@@ -2686,12 +3212,13 @@ function ComposerPanel({
         void onSubmit();
       }
     },
-    [disabled, onSubmit],
+    [disabled, interactionLocked, onMentionTrigger, onSubmit],
   );
 
   const statusText =
     sendError ??
     attachmentError ??
+    workspaceRefError ??
     (isCreatingConversation
       ? "Creating conversation…"
       : isUploadingAttachments
@@ -2706,6 +3233,31 @@ function ComposerPanel({
       style={{ bottom: `${bottomOffset + 10}px` }}
     >
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-6">
+        {selectedWorkspaceRefs.length > 0 ? (
+          <ul className="mb-2 flex flex-wrap gap-2 px-2">
+            {selectedWorkspaceRefs.map((ref) => (
+              <li
+                key={ref.id}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs shadow-sm ${
+                  ref.invalid
+                    ? "border-red-300 bg-red-50 text-red-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                }`}
+              >
+                <span title={ref.relativePath}>@{ref.displayName}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${ref.displayName}`}
+                  className="rounded-full border border-current/20 p-1 leading-none transition hover:bg-black/5"
+                  disabled={interactionLocked}
+                  onClick={() => onRemoveWorkspaceRef(ref.id)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <div className="rounded-[999px] border border-border bg-background/95 p-2 shadow-2xl backdrop-blur">
           <label htmlFor="chat-composer" className="sr-only">
             Message
@@ -2725,8 +3277,18 @@ function ComposerPanel({
                 }}
               />
             </label>
+            <button
+              type="button"
+              aria-label="Attach workspace files"
+              className="inline-flex h-10 min-w-10 items-center justify-center rounded-md px-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={interactionLocked}
+              onClick={onOpenWorkspacePicker}
+            >
+              @
+            </button>
             <textarea
               id="chat-composer"
+              ref={composerRef}
               value={value}
               onChange={(event) => setValue(event.target.value)}
               onKeyDown={onKeyDown}
@@ -2765,6 +3327,220 @@ function ComposerPanel({
             </ul>
           ) : null}
           {statusText ? <p className="mt-2 px-1 text-center text-xs text-muted-foreground">{statusText}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type WorkspaceFilePickerProps = {
+  open: boolean;
+  mode: "scope" | "picker";
+  currentDirectory: string;
+  directoryItems: WorkspaceBrowseItem[];
+  query: string;
+  results: WorkspaceSearchResult[];
+  pendingPaths: string[];
+  loading: boolean;
+  errorMessage: string | null;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  onClose: () => void;
+  onChooseWorkspaceSearch: () => void;
+  onChooseDirectoryBrowse: () => void;
+  onNavigateDirectory: (relativePath: string) => void;
+  onChangeQuery: (value: string) => void;
+  onToggleSelection: (relativePath: string) => void;
+  onAttach: () => void;
+};
+
+function WorkspaceFilePicker({
+  open,
+  mode,
+  currentDirectory,
+  directoryItems,
+  query,
+  results,
+  pendingPaths,
+  loading,
+  errorMessage,
+  searchInputRef,
+  onClose,
+  onChooseWorkspaceSearch,
+  onChooseDirectoryBrowse,
+  onNavigateDirectory,
+  onChangeQuery,
+  onToggleSelection,
+  onAttach,
+}: WorkspaceFilePickerProps) {
+  if (!open) {
+    return null;
+  }
+
+  const visibleItems = query.trim().length > 0 ? results : directoryItems;
+  const showEmptyState = !loading && visibleItems.length === 0 && mode === "picker";
+  const currentDirectoryLabel = currentDirectory || "Workspace";
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm">
+      <div className="flex h-full items-end sm:items-center sm:justify-center">
+        <div className="flex h-[88vh] w-full flex-col rounded-t-3xl border border-border bg-background shadow-2xl sm:h-auto sm:max-h-[80vh] sm:max-w-2xl sm:rounded-2xl">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Workspace files</p>
+              <p className="text-xs text-muted-foreground">
+                {mode === "scope" ? "Choose how to search the workspace." : currentDirectoryLabel}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close workspace file picker"
+              className="rounded-md border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {mode === "scope" ? (
+            <div className="grid gap-3 p-4 sm:grid-cols-2">
+              <button
+                type="button"
+                className="rounded-2xl border border-border bg-background p-4 text-left transition hover:bg-muted"
+                onClick={onChooseWorkspaceSearch}
+              >
+                <p className="text-sm font-semibold text-foreground">Search whole workspace</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Start at the workspace root and search by filename.
+                </p>
+              </button>
+              <button
+                type="button"
+                className="rounded-2xl border border-border bg-background p-4 text-left transition hover:bg-muted"
+                onClick={onChooseDirectoryBrowse}
+              >
+                <p className="text-sm font-semibold text-foreground">Choose directory</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Navigate folders first, then search or select files in that area.
+                </p>
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="border-b border-border px-4 py-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-3 py-2 text-xs font-medium transition hover:bg-muted sm:w-auto"
+                    onClick={() => {
+                      const parentPath = currentDirectory.includes("/")
+                        ? currentDirectory.slice(0, currentDirectory.lastIndexOf("/"))
+                        : "";
+                      onNavigateDirectory(parentPath);
+                    }}
+                  >
+                    Up
+                  </button>
+                  <div className="min-w-0 flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{currentDirectoryLabel}</span>
+                  </div>
+                  <div className="relative flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      ref={searchInputRef}
+                      type="search"
+                      value={query}
+                      onChange={(event) => onChangeQuery(event.target.value)}
+                      placeholder="Search by file name"
+                      className="h-10 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/15"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                {errorMessage ? (
+                  <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {errorMessage}
+                  </p>
+                ) : null}
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Loading workspace…</p>
+                ) : null}
+                {showEmptyState ? (
+                  <p className="text-sm text-muted-foreground">
+                    {query.trim().length > 0 ? "No files matched this search." : "This directory is empty."}
+                  </p>
+                ) : null}
+                {!loading && visibleItems.length > 0 ? (
+                  <ul className="space-y-2">
+                    {visibleItems.map((item) => {
+                      const relativePath = item.relativePath;
+                      const isSelected = pendingPaths.includes(relativePath);
+                      const isDirectory = "isDirectory" in item ? item.isDirectory : false;
+                      return (
+                        <li key={relativePath}>
+                          <div className="flex items-center gap-3 rounded-2xl border border-border bg-background px-3 py-2">
+                            {isDirectory ? (
+                              <button
+                                type="button"
+                                className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                                onClick={() => onNavigateDirectory(relativePath)}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-medium text-foreground">
+                                    {item.displayName}
+                                  </span>
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {relativePath}
+                                  </span>
+                                </span>
+                                <span className="text-xs font-medium text-muted-foreground">Open</span>
+                              </button>
+                            ) : (
+                              <>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => onToggleSelection(relativePath)}
+                                  className="h-4 w-4 rounded border-border text-foreground"
+                                />
+                                <button
+                                  type="button"
+                                  className="min-w-0 flex-1 text-left"
+                                  onClick={() => onToggleSelection(relativePath)}
+                                >
+                                  <span className="block truncate text-sm font-medium text-foreground">
+                                    {item.displayName}
+                                  </span>
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {relativePath}
+                                  </span>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </div>
+              <div className="border-t border-border px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {pendingPaths.length > 0 ? `${pendingPaths.length} file${pendingPaths.length === 1 ? "" : "s"} selected` : "No files selected"}
+                  </p>
+                  <button
+                    type="button"
+                    className="rounded-xl bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={pendingPaths.length === 0}
+                    onClick={onAttach}
+                  >
+                    Attach selected
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -2964,6 +3740,25 @@ function MessageRow({
                       <p className="mt-0.5 break-all text-muted-foreground">{file.storagePath}</p>
                     </>
                   )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {message.workspaceRefs && message.workspaceRefs.length > 0 ? (
+          <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50/80 p-3">
+            <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-emerald-800/80">
+              Workspace files
+            </p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {message.workspaceRefs.map((ref) => (
+                <li
+                  key={ref.relativePath}
+                  className="rounded-full border border-emerald-200 bg-white/70 px-3 py-1 text-xs text-emerald-950"
+                  title={ref.relativePath}
+                >
+                  <span className="font-semibold">@{ref.displayName}</span>
+                  <span className="ml-2 text-emerald-900/70">{ref.relativePath}</span>
                 </li>
               ))}
             </ul>

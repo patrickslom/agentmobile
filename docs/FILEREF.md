@@ -3,7 +3,7 @@
 ## Goal
 Add a Codex-style `@` file reference flow to AGENTMOBILE so a user can type `@`, search files in the workspace, select one or more matches, and send the message with those file references available to the agent as context.
 
-This is a planning doc only. Do not implement from this document until the UX and backend contract are aligned.
+This document now reflects the aligned v1 implementation shape.
 
 ## Recommendation
 Use `@` references as a first-class message feature, not as plain text parsing only and not as uploaded duplicates.
@@ -25,16 +25,19 @@ These decisions are now considered the planned direction for v1:
 - websocket `send_message` carries structured `file_refs`
 - backend stores those refs in `message.metadata_json`
 - agent file access is required, not optional, when valid `file_refs` are sent
-- picker opens from workspace root every time
-- selecting a file closes the picker immediately
-- v1 is single-select only
+- when no project is selected, typing `@` opens a lightweight scope chooser first
+- scope chooser allows either searching the whole workspace or navigating folders before searching
+- when a project root is available later, the picker should default to that directory while still allowing navigation outside it
+- v1 is multi-select
 - folders are navigable only and cannot be attached
 - composer display uses filename-only text while full path is stored in structured metadata
 - sent workspace refs should be visually distinct from uploads, using a light green treatment
 - canceling the picker leaves the typed `@` symbol in place
 - search/browse hides nothing by default
 - if a selected ref no longer resolves at send time, block the send
+- picker keeps the session open so the user can select several files before confirming
 - picker default view is current directory contents only, not recent files
+- filename search is the primary search mode for v1
 
 ## Hard Requirement
 When a user sends one or more valid `@` file references, the backend must make those files available to the agent for that turn in a way that allows the agent to actually read them from disk.
@@ -74,7 +77,7 @@ For this app, a picker modal or mobile sheet is a better fit than a tiny inline 
 3. The picker supports both directory navigation and workspace-root search.
 4. On desktop, keyboard navigation should work with `Arrow` keys, `Enter`, and `Esc`.
 5. On mobile, the picker should behave as a bottom sheet or full-screen chooser.
-6. After selection, the composer inserts literal `@path` text.
+6. After selection, the composer inserts literal filename-only `@name.ext` text for each selected ref.
 7. On send, the message carries:
    - normal text content
    - selected file references as structured metadata
@@ -84,7 +87,7 @@ For this app, a picker modal or mobile sheet is a better fit than a tiny inline 
 ### Match behavior
 Suggested search targets:
 - file name
-- relative path
+- optionally relative path as a secondary ranking signal later
 - optionally recent/opened files later, but not in v1
 
 Suggested ranking:
@@ -112,12 +115,15 @@ Important tradeoff:
 ### Picker behavior
 Recommended default:
 - typing `@` opens the picker immediately
+- if no project is selected, picker first shows a lightweight scope chooser
 - picker includes a search field at the top
 - picker allows folder navigation and file selection
-- picker starts at the workspace root every time
+- picker starts at the workspace root today
+- when project-aware conversations land, picker should start from the project root by default
 - picker default view shows current directory contents only
 - picker inserts filename-only `@name.ext` text into the composer while preserving the real relative path in structured state
-- selecting a file closes the picker immediately
+- picker stays open for multi-select and confirms with an explicit attach action
+- file rows use checkboxes for multi-select
 
 ## Recommended Scope For V1
 ### Include
@@ -125,7 +131,8 @@ Recommended default:
 - directory navigation inside the picker
 - files only, not directories
 - modal/sheet picker opened immediately by `@`
-- single-file selection only for v1
+- lightweight scope chooser when no project is selected
+- multi-file selection in one picker session
 - structured refs attached to a sent message
 - backend validation that selected paths stay inside allowed workspace
 
@@ -138,7 +145,7 @@ Recommended default:
 
 ## Architecture
 ### Frontend
-Add a small mention state machine to the composer in [`/root/agentmobile/frontend/components/chat/chat-workspace.tsx`](/root/agentmobile/frontend/components/chat/chat-workspace.tsx).
+Add a small mention state machine to the composer in [`/root/codexchat/frontend/components/chat/chat-workspace.tsx`](/root/codexchat/frontend/components/chat/chat-workspace.tsx).
 
 Likely draft state:
 - `fileRefQuery`
@@ -168,8 +175,9 @@ Recommended UI shape:
 - desktop: centered modal
 - mobile: bottom sheet or full-screen picker
 - search and browse live in the same picker
-- picker opens at workspace root every time
-- selecting a file closes the picker immediately
+- if no project is selected, show scope chooser before entering search/browse
+- picker opens at workspace root every time today, with project-root defaulting planned once project awareness exists
+- selecting files does not close the picker; user confirms a batch
 
 ### Backend API
 Add lightweight workspace browse/search endpoints, likely under the chat or files domain.
@@ -179,6 +187,9 @@ Candidate search endpoint:
 
 Candidate browse endpoint:
 - `GET /api/workspace/files/browse?path=agentmobile/frontend/components`
+
+Candidate resolve endpoint:
+- `POST /api/workspace/files/resolve`
 
 Response shape:
 
@@ -195,6 +206,7 @@ Response shape:
 
 Search implementation should:
 - search under the configured Codex workspace root
+- search by filename first for v1
 - return only normalized relative paths
 - never expose paths outside the configured root
 
@@ -247,6 +259,7 @@ Required runtime behavior:
 - if valid `file_refs` were selected, the turn must run with those file paths available for reading
 - do not silently downgrade to “the user mentioned these files” semantics
 - if resolution fails, return a clear error instead of pretending the refs were attached
+- frontend should preflight selected refs before send so invalid refs can be removed without losing the rest of the draft
 
 ### Persistence
 Store file refs in `message.metadata_json` first.

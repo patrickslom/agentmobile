@@ -13,6 +13,7 @@ Example:
 - `2026-03-08 - Add changelog - Created docs/CHANGELOG.md with usage instructions and entry format guidance.`
 
 Entries:
+- `2026-03-12 - Add workspace @ file references - Implemented responsive workspace file picking with structured per-message file refs, backend path resolution, and composer/message UI support for attached workspace files.`
 - `2026-03-09 - Refresh landing/login UI and repo assets - Simplified the home page CTA area, fixed Android login form contrast/theme behavior, updated the README title, and replaced the old image asset with a new screenshot file.`
 - `2026-03-08 - Rename project to AGENTMOBILE - Rebranded the app, renamed backend/frontend services and folders, migrated Docker/runtime naming, and routed agentmobile.pro to the landing page.`
 - `2026-03-08 - Add pending assistant placeholder and sidebar refresh - Replaced inline busy text with an immediate animated assistant placeholder, kept response ordering stable during streaming, and refreshed the sidebar after background title/summary updates.`

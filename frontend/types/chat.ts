@@ -9,6 +9,12 @@ export type ChatMessageFile = {
   sizeBytes?: number;
 };
 
+export type WorkspaceFileRef = {
+  kind: "workspace";
+  relativePath: string;
+  displayName: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -22,6 +28,7 @@ export type ChatMessage = {
   createdAt: string;
   clientMessageId?: string;
   files?: ChatMessageFile[];
+  workspaceRefs?: WorkspaceFileRef[];
   pending?: boolean;
   partial?: boolean;
   turnStatus?: "completed" | "failed" | "timed_out" | "stopped";
@@ -69,6 +76,11 @@ export type MessageCreatedEvent = {
     created_at?: string;
     client_message_id?: string | null;
     files?: unknown;
+    metadata_json?: {
+      workspace_refs?: unknown;
+      partial?: unknown;
+      turn_status?: unknown;
+    };
   };
 };
 

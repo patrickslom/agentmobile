@@ -7,6 +7,7 @@ from app.domains.bookmarks.router import router as bookmarks_router
 from app.domains.chat.router import router as chat_router
 from app.domains.codex.router import router as codex_router
 from app.domains.files.router import router as files_router
+from app.domains.files.workspace_router import router as workspace_files_router
 from app.domains.heartbeat.router import router as heartbeat_router
 from app.domains.locks.router import router as locks_router
 from app.domains.settings.router import router as settings_router
@@ -18,6 +19,7 @@ api_router.include_router(chat_router)
 api_router.include_router(bookmarks_router)
 api_router.include_router(codex_router)
 api_router.include_router(files_router)
+api_router.include_router(workspace_files_router)
 api_router.include_router(heartbeat_router)
 api_router.include_router(settings_router)
 api_router.include_router(admin_router)

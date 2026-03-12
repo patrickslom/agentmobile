@@ -28,6 +28,7 @@ from app.domains.codex.runtime import (
     codex_process_runner,
 )
 from app.domains.files.service import assign_files_to_message
+from app.domains.files.workspace_service import resolve_workspace_file_refs
 from app.domains.locks.service import LockState, conversation_lock_service
 
 logger = logging.getLogger("app.api")
@@ -47,7 +48,15 @@ class SendMessageEvent(BaseModel):
     conversation_id: UUID
     content: str
     file_ids: list[UUID] = Field(default_factory=list)
+    file_refs: list["WorkspaceFileRefInput"] = Field(default_factory=list)
     client_message_id: str | None = None
+
+
+class WorkspaceFileRefInput(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    kind: Literal["workspace"] = "workspace"
+    relative_path: str
 
 
 class StopEvent(BaseModel):
@@ -296,6 +305,7 @@ class ChatWebSocketService:
                 request_id=request_id,
                 content=content,
                 file_ids=event.file_ids,
+                file_refs=event.file_refs,
                 client_message_id=event.client_message_id,
                 owner_token=owner_token,
                 stop_event=stop_event,
@@ -312,6 +322,7 @@ class ChatWebSocketService:
         request_id: str,
         content: str,
         file_ids: list[UUID],
+        file_refs: list[WorkspaceFileRefInput],
         client_message_id: str | None,
         owner_token: str,
         stop_event: asyncio.Event,
@@ -373,13 +384,18 @@ class ChatWebSocketService:
                     message_id=user_message.id,
                     file_ids=file_ids,
                 )
+                resolved_workspace_refs = resolve_workspace_file_refs(
+                    file_ref.relative_path
+                    for file_ref in file_refs
+                    if file_ref.kind == "workspace"
+                )
 
                 attached_refs = []
                 for attached_file in attached_files:
                     attached_refs.append(
                         {
                             "id": str(attached_file.id),
-                            "name": attached_file.original_name,
+                            "original_name": attached_file.original_name,
                             "storage_path": attached_file.storage_path,
                             "download_path": f"/api/files/{attached_file.id}",
                         }
@@ -387,7 +403,16 @@ class ChatWebSocketService:
                 user_message.metadata_json = {
                     **(user_message.metadata_json or {}),
                     "attached_files": attached_refs,
+                    "workspace_refs": [
+                        {
+                            "kind": str(ref["kind"]),
+                            "relative_path": str(ref["relative_path"]),
+                            "display_name": str(ref["display_name"]),
+                        }
+                        for ref in resolved_workspace_refs
+                    ],
                 }
+                user_message_metadata = dict(user_message.metadata_json or {})
                 uploads_root = Path(get_settings().uploads_path).expanduser().resolve()
                 message_file_paths = []
                 for attached_file in attached_files:
@@ -400,6 +425,7 @@ class ChatWebSocketService:
                             details={"file_id": str(attached_file.id)},
                         )
                     message_file_paths.append(str(resolved_path))
+                message_file_paths.extend(str(ref["absolute_path"]) for ref in resolved_workspace_refs)
                 db.commit()
 
             await self._broadcast_to_conversation(
@@ -417,6 +443,7 @@ class ChatWebSocketService:
                         "is_current_user_author": None,
                         "created_at": user_message_created_at,
                         "files": attached_refs,
+                        "metadata_json": user_message_metadata,
                         "client_message_id": client_message_id,
                     },
                 },
@@ -877,6 +904,8 @@ def _normalize_client_payload(raw_payload: dict[str, object]) -> dict[str, objec
         normalized["conversation_id"] = normalized["conversationId"]
     if "file_ids" not in normalized and "fileIds" in normalized:
         normalized["file_ids"] = normalized["fileIds"]
+    if "file_refs" not in normalized and "fileRefs" in normalized:
+        normalized["file_refs"] = normalized["fileRefs"]
     if "client_message_id" not in normalized and "clientMessageId" in normalized:
         normalized["client_message_id"] = normalized["clientMessageId"]
     return normalized
@@ -905,7 +934,7 @@ def _assistant_author_fields() -> dict[str, object | None]:
 def _build_prompt_with_files(*, content: str, file_paths: list[str]) -> str:
     if not file_paths:
         return content
-    lines = [content, "", "Attached files (use these paths when reading/writing files):"]
+    lines = [content, "", "Available file paths for this turn (use these exact paths when reading/writing files):"]
     for path in file_paths:
         lines.append(f"- {path}")
     return "\n".join(lines)

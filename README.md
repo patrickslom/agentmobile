@@ -1,4 +1,4 @@
-<p align="center">
+<p align="left">
   <img src="frontend/public/brand/gnome-default.png" alt="AGENTMOBILE logo" width="240" />
 </p>
 
@@ -202,16 +202,17 @@ Use a full production rebuild when you change frontend dependencies or want the 
 2. Log in.
 3. Click `New chat` to start a conversation.
 4. Optionally attach files; app stores them in the managed files directory.
-5. Send message and the chat immediately shows a pending assistant `...` state, then streams the Codex response in place (attached file paths are sent with the message and shown in chat).
-6. In shared conversations, human messages show sender identity:
+5. Optionally use `@` in the composer to open a workspace file picker, browse folders or search by filename, and attach one or more workspace files as structured turn context.
+6. Send message and the chat immediately shows a pending assistant `...` state, then streams the Codex response in place (uploaded attachments and selected workspace file paths are sent with the message and shown in chat).
+7. In shared conversations, human messages show sender identity:
    - your messages: `YOU`, right-aligned
    - other users' messages: sender name (or profile picture initials), left-aligned
    - assistant messages remain full-width and unlabeled by user identity
-7. Reopen old conversations from sidebar/drawer.
-8. Bookmark helpful assistant messages and revisit them from the dedicated Bookmarks view, filtered to either your own saves or all user saves.
-9. Upload files into chat and download generated/shared files.
-10. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
-11. After the first 2 exchanges, the app generates a clearer chat title and short sidebar summary in the background and refreshes the sidebar when that metadata is ready.
+8. Reopen old conversations from sidebar/drawer.
+9. Bookmark helpful assistant messages and revisit them from the dedicated Bookmarks view, filtered to either your own saves or all user saves.
+10. Upload files into chat and download generated/shared files.
+11. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
+12. After the first 2 exchanges, the app generates a clearer chat title and short sidebar summary in the background and refreshes the sidebar when that metadata is ready.
 
 Codex integration model:
 - This app uses the existing Codex installation/auth on your VPS.
