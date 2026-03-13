@@ -21,15 +21,20 @@ import { useChatWebSocket } from "@/hooks/use-chat-websocket";
 import { getApiBaseUrl, getWebSocketUrl } from "@/lib/network-config";
 import MessageMarkdown from "@/components/chat/message-markdown";
 import type {
+  AssistantClarifyEvent,
   AssistantDeltaEvent,
   AssistantDoneEvent,
+  AssistantProjectCreateEvent,
   AssistantWaitingEvent,
   ChatErrorEvent,
   ChatMessage,
   ChatMessageFile,
   ChatRole,
   ConversationBusyEvent,
+  ConversationProjectStateEvent,
   MessageCreatedEvent,
+  PendingProjectClarification,
+  ProjectSummary,
   WorkspaceFileRef,
 } from "@/types/chat";
 
@@ -42,6 +47,9 @@ type ApiConversation = {
   updatedAt?: string;
   created_at?: string;
   createdAt?: string;
+  project_mode?: string;
+  project?: unknown;
+  pending_project_clarification?: unknown;
 };
 
 type ApiConversationMessage = {
@@ -85,10 +93,14 @@ type ConversationItem = {
   title: string;
   summaryShort: string | null;
   updatedAt: string | null;
+  project: ProjectSummary | null;
+  pendingProjectClarification: PendingProjectClarification | null;
 };
 
 type ConversationDetail = {
   messages: ChatMessage[];
+  project: ProjectSummary | null;
+  pendingProjectClarification: PendingProjectClarification | null;
 };
 
 type UploadedFileResponse = {
@@ -138,11 +150,14 @@ const PREVIEWABLE_IMAGE_MIME_TYPES = new Set([
 ]);
 
 type ChatEvent =
+  | AssistantClarifyEvent
   | AssistantDeltaEvent
   | AssistantDoneEvent
+  | AssistantProjectCreateEvent
   | AssistantWaitingEvent
   | ChatErrorEvent
   | ConversationBusyEvent
+  | ConversationProjectStateEvent
   | {
       type?: string;
       conversationId?: string;
@@ -159,12 +174,16 @@ const MOCK_CONVERSATIONS: ConversationItem[] = [
     title: "Draft deployment checklist",
     summaryShort: "Prepared the initial VPS launch checklist and deployment order for a production AGENTMOBILE setup.",
     updatedAt: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
+    project: null,
+    pendingProjectClarification: null,
   },
   {
     id: "mock-2",
     title: "Layout polish notes",
     summaryShort: "Reviewed spacing and sidebar behavior for chat screens across desktop and mobile viewports.",
     updatedAt: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
+    project: null,
+    pendingProjectClarification: null,
   },
 ];
 
@@ -211,6 +230,102 @@ function normalizeConversation(item: ApiConversation): ConversationItem | null {
           ? item.summaryShort.trim() || null
           : null,
     updatedAt: item.updated_at ?? item.updatedAt ?? item.created_at ?? item.createdAt ?? null,
+    project: normalizeProjectSummary(item.project),
+    pendingProjectClarification: normalizePendingProjectClarification(item.pending_project_clarification),
+  };
+}
+
+function normalizeProjectSummary(value: unknown): ProjectSummary | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as {
+    id?: unknown;
+    name?: unknown;
+    root_path?: unknown;
+    rootPath?: unknown;
+    index_md_path?: unknown;
+    indexMdPath?: unknown;
+    is_active?: unknown;
+    isActive?: unknown;
+  };
+
+  const id = normalizeStringField(item.id);
+  const name = normalizeStringField(item.name);
+  const rootPath = normalizeStringField(item.root_path ?? item.rootPath);
+  if (!id || !name || !rootPath) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    rootPath,
+    indexMdPath: normalizeStringField(item.index_md_path ?? item.indexMdPath) ?? null,
+    isActive: normalizeBooleanField(item.is_active ?? item.isActive) ?? true,
+  };
+}
+
+function normalizePendingProjectClarification(value: unknown): PendingProjectClarification | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as {
+    state?: unknown;
+    question?: unknown;
+    options?: unknown;
+    allow_create?: unknown;
+    allowCreate?: unknown;
+  };
+
+  const state = item.state === "awaiting_selection" || item.state === "awaiting_create"
+    ? item.state
+    : null;
+  const question = normalizeStringField(item.question);
+  if (!state || !question) {
+    return null;
+  }
+
+  const options = Array.isArray(item.options)
+    ? item.options
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") {
+            return null;
+          }
+          const option = entry as {
+            number?: unknown;
+            id?: unknown;
+            label?: unknown;
+            name?: unknown;
+            root_path?: unknown;
+            rootPath?: unknown;
+          };
+          if (
+            typeof option.number !== "number" ||
+            !Number.isInteger(option.number) ||
+            typeof option.id !== "string" ||
+            typeof option.label !== "string"
+          ) {
+            return null;
+          }
+          return {
+            number: option.number,
+            id: option.id,
+            label: option.label,
+            name: normalizeStringField(option.name),
+            rootPath: normalizeStringField(option.root_path ?? option.rootPath),
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    : [];
+
+  return {
+    state,
+    question,
+    options,
+    allowCreate: normalizeBooleanField(item.allow_create ?? item.allowCreate) ?? true,
   };
 }
 
@@ -398,7 +513,7 @@ function normalizeMessage(item: ApiConversationMessage): ChatMessage | null {
 
 function extractConversationDetail(payload: unknown): ConversationDetail {
   if (!payload || typeof payload !== "object") {
-    return { messages: [] };
+    return { messages: [], project: null, pendingProjectClarification: null };
   }
 
   const root = payload as {
@@ -423,6 +538,16 @@ function extractConversationDetail(payload: unknown): ConversationDetail {
 
   return {
     messages,
+    project: normalizeProjectSummary(
+      root && typeof root === "object" && "conversation" in root && root.conversation && typeof root.conversation === "object"
+        ? (root.conversation as { project?: unknown }).project
+        : undefined,
+    ),
+    pendingProjectClarification: normalizePendingProjectClarification(
+      root && typeof root === "object" && "conversation" in root && root.conversation && typeof root.conversation === "object"
+        ? (root.conversation as { pending_project_clarification?: unknown }).pending_project_clarification
+        : undefined,
+    ),
   };
 }
 
@@ -739,6 +864,9 @@ export default function ChatWorkspace() {
   const [messagesByConversationId, setMessagesByConversationId] = useState<Record<string, ChatMessage[]>>({});
   const [streamDraftByConversationId, setStreamDraftByConversationId] = useState<Record<string, string>>({});
   const [busyByConversationId, setBusyByConversationId] = useState<Record<string, boolean>>({});
+  const [projectByConversationId, setProjectByConversationId] = useState<Record<string, ProjectSummary | null>>({});
+  const [pendingProjectClarificationByConversationId, setPendingProjectClarificationByConversationId] = useState<Record<string, PendingProjectClarification | null>>({});
+  const [projectCreateDraftByConversationId, setProjectCreateDraftByConversationId] = useState<Record<string, { name: string; rootPath: string; indexMdPath: string }>>({});
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [composerValue, setComposerValue] = useState("");
@@ -840,6 +968,11 @@ export default function ChatWorkspace() {
     ? Boolean(busyByConversationId[selectedConversationId])
     : false;
   const selectedSendError = selectedConversationId ? (sendErrorByConversationId[selectedConversationId] ?? null) : null;
+  const selectedConversationProject = selectedConversationId ? (projectByConversationId[selectedConversationId] ?? null) : null;
+  const selectedPendingProjectClarification = selectedConversationId
+    ? (pendingProjectClarificationByConversationId[selectedConversationId] ?? null)
+    : null;
+  const composerLockedByProjectCreate = selectedPendingProjectClarification?.state === "awaiting_create";
   const uploadLimitBytes = uploadLimitMb * 1024 * 1024;
 
   useEffect(() => {
@@ -876,6 +1009,14 @@ export default function ChatWorkspace() {
           .filter((item): item is ConversationItem => Boolean(item));
 
         setConversations(normalized);
+        setProjectByConversationId((previous) => ({
+          ...previous,
+          ...Object.fromEntries(normalized.map((item) => [item.id, item.project])),
+        }));
+        setPendingProjectClarificationByConversationId((previous) => ({
+          ...previous,
+          ...Object.fromEntries(normalized.map((item) => [item.id, item.pendingProjectClarification])),
+        }));
         setErrorMessage(null);
       } catch (error) {
         if (SHOULD_USE_MOCKS && isLikelyNetworkFailure(error)) {
@@ -1001,6 +1142,14 @@ export default function ChatWorkspace() {
 
         const payload = (await response.json()) as unknown;
         const detail = extractConversationDetail(payload);
+        setProjectByConversationId((previous) => ({
+          ...previous,
+          [conversationId]: detail.project,
+        }));
+        setPendingProjectClarificationByConversationId((previous) => ({
+          ...previous,
+          [conversationId]: detail.pendingProjectClarification,
+        }));
         setMessagesByConversationId((previous) => {
           const localPendingMessages = (previous[conversationId] ?? []).filter(
             (message) => Boolean(message.deliveryStatus) || Boolean(message.pending),
@@ -1581,7 +1730,7 @@ export default function ChatWorkspace() {
       return;
     }
 
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         closeWorkspacePicker();
       }
@@ -1806,6 +1955,14 @@ export default function ChatWorkspace() {
         return [createdConversation, ...withoutDuplicate];
       });
       setSelectedConversationId(createdConversation.id);
+      setProjectByConversationId((previous) => ({
+        ...previous,
+        [createdConversation.id]: createdConversation.project,
+      }));
+      setPendingProjectClarificationByConversationId((previous) => ({
+        ...previous,
+        [createdConversation.id]: createdConversation.pendingProjectClarification,
+      }));
       setSendErrorByConversationId((previous) => ({
         ...previous,
         [createdConversation.id]: null,
@@ -1947,6 +2104,32 @@ export default function ChatWorkspace() {
     });
   }, []);
 
+  const applyConversationProjectState = useCallback((
+    conversationId: string,
+    project: ProjectSummary | null,
+    pendingClarification: PendingProjectClarification | null,
+  ) => {
+    setProjectByConversationId((previous) => ({
+      ...previous,
+      [conversationId]: project,
+    }));
+    setPendingProjectClarificationByConversationId((previous) => ({
+      ...previous,
+      [conversationId]: pendingClarification,
+    }));
+    setConversations((previous) =>
+      previous.map((item) => (
+        item.id === conversationId
+          ? {
+              ...item,
+              project,
+              pendingProjectClarification: pendingClarification,
+            }
+          : item
+      )),
+    );
+  }, []);
+
   const onWebSocketMessage = useCallback(
     (messageEvent: MessageEvent<string>) => {
       const event = parseEventPayload(messageEvent.data);
@@ -1990,6 +2173,54 @@ export default function ChatWorkspace() {
           [conversationId]: true,
         }));
         ensurePendingAssistantMessage(conversationId);
+        return;
+      }
+
+      if (event.type === "assistant_clarify") {
+        const clarifyEvent = event as AssistantClarifyEvent;
+        applyConversationProjectState(
+          conversationId,
+          projectByConversationId[conversationId] ?? null,
+          normalizePendingProjectClarification({
+            state: "awaiting_selection",
+            question: clarifyEvent.question,
+            options: clarifyEvent.options,
+            allow_create: clarifyEvent.allow_create,
+          }),
+        );
+        clearPendingAssistantMessage(conversationId);
+        setBusyByConversationId((previous) => ({
+          ...previous,
+          [conversationId]: false,
+        }));
+        return;
+      }
+
+      if (event.type === "assistant_project_create") {
+        const createEvent = event as AssistantProjectCreateEvent;
+        applyConversationProjectState(
+          conversationId,
+          projectByConversationId[conversationId] ?? null,
+          normalizePendingProjectClarification({
+            state: "awaiting_create",
+            question: createEvent.question,
+          }),
+        );
+        clearPendingAssistantMessage(conversationId);
+        setBusyByConversationId((previous) => ({
+          ...previous,
+          [conversationId]: false,
+        }));
+        return;
+      }
+
+      if (event.type === "conversation_project_state") {
+        const projectStateEvent = event as ConversationProjectStateEvent;
+        applyConversationProjectState(
+          conversationId,
+          normalizeProjectSummary(projectStateEvent.project),
+          normalizePendingProjectClarification(projectStateEvent.pending_project_clarification),
+        );
         return;
       }
 
@@ -2073,10 +2304,12 @@ export default function ChatWorkspace() {
     },
     [
       applyAssistantDone,
+      applyConversationProjectState,
       applyCreatedMessage,
       clearPendingAssistantMessage,
       ensurePendingAssistantMessage,
       markLatestSendingMessageAsFailed,
+      projectByConversationId,
       scheduleSidebarMetadataRefresh,
       selectedConversationId,
     ],
@@ -2100,6 +2333,64 @@ export default function ChatWorkspace() {
       }
     },
   });
+
+  const submitProjectClarificationSelection = useCallback(async (selection: number): Promise<boolean> => {
+    if (!selectedConversationId) {
+      return false;
+    }
+
+    const sent = sendJsonMessage({
+      type: "project_clarify_reply",
+      conversationId: selectedConversationId,
+      selection,
+    });
+    if (!sent) {
+      setSendErrorByConversationId((previous) => ({
+        ...previous,
+        [selectedConversationId]: "Project selection failed to send. Reconnect and retry.",
+      }));
+      return false;
+    }
+
+    setBusyByConversationId((previous) => ({
+      ...previous,
+      [selectedConversationId]: true,
+    }));
+    return true;
+  }, [selectedConversationId, sendJsonMessage]);
+
+  const submitInlineProjectCreate = useCallback(async (): Promise<boolean> => {
+    if (!selectedConversationId) {
+      return false;
+    }
+
+    const draft = projectCreateDraftByConversationId[selectedConversationId] ?? {
+      name: "",
+      rootPath: "",
+      indexMdPath: "",
+    };
+
+    const sent = sendJsonMessage({
+      type: "create_project",
+      conversationId: selectedConversationId,
+      name: draft.name,
+      root_path: draft.rootPath,
+      index_md_path: draft.indexMdPath.trim() || null,
+    });
+    if (!sent) {
+      setSendErrorByConversationId((previous) => ({
+        ...previous,
+        [selectedConversationId]: "Project creation failed to send. Reconnect and retry.",
+      }));
+      return false;
+    }
+
+    setBusyByConversationId((previous) => ({
+      ...previous,
+      [selectedConversationId]: true,
+    }));
+    return true;
+  }, [projectCreateDraftByConversationId, selectedConversationId, sendJsonMessage]);
 
   const submitMessage = useCallback(
     async (rawContent: string): Promise<boolean> => {
@@ -2231,6 +2522,24 @@ export default function ChatWorkspace() {
   );
 
   const onComposerSubmit = useCallback(async () => {
+    if (selectedPendingProjectClarification?.state === "awaiting_selection") {
+      const selection = Number.parseInt(composerValue.trim(), 10);
+      if (!Number.isInteger(selection)) {
+        if (selectedConversationId) {
+          setSendErrorByConversationId((previous) => ({
+            ...previous,
+            [selectedConversationId]: "Reply with a listed project number or use the inline action.",
+          }));
+        }
+        return;
+      }
+      const sent = await submitProjectClarificationSelection(selection);
+      if (sent) {
+        setComposerValue("");
+      }
+      return;
+    }
+
     const sent = await submitMessage(composerValue);
     if (sent) {
       setComposerValue("");
@@ -2240,7 +2549,13 @@ export default function ChatWorkspace() {
       }
       setComposerBottomOffset(0);
     }
-  }, [composerValue, submitMessage]);
+  }, [
+    composerValue,
+    selectedConversationId,
+    selectedPendingProjectClarification,
+    submitMessage,
+    submitProjectClarificationSelection,
+  ]);
 
   const onComposerChange = useCallback((nextValue: string) => {
     setComposerValue(nextValue);
@@ -2351,6 +2666,7 @@ export default function ChatWorkspace() {
   const canSubmitComposer =
     composerValue.trim().length > 0 &&
     !selectedConversationBusy &&
+    !composerLockedByProjectCreate &&
     !isCreatingConversation &&
     !isUploadingAttachments &&
     connectionState === "connected" &&
@@ -2516,6 +2832,35 @@ export default function ChatWorkspace() {
             <p className="mb-3 text-sm text-muted-foreground">{wsResolution.error}</p>
           ) : null}
 
+          {selectedConversationProject ? (
+            <ProjectContextBanner project={selectedConversationProject} />
+          ) : null}
+
+          {selectedConversationId && selectedPendingProjectClarification ? (
+            <ProjectClarificationCard
+              clarification={selectedPendingProjectClarification}
+              createDraft={projectCreateDraftByConversationId[selectedConversationId] ?? { name: "", rootPath: "", indexMdPath: "" }}
+              busy={selectedConversationBusy}
+              onSelectOption={(selection) => {
+                void submitProjectClarificationSelection(selection);
+              }}
+              onCreateDraftChange={(field, value) => {
+                setProjectCreateDraftByConversationId((previous) => ({
+                  ...previous,
+                  [selectedConversationId]: {
+                    name: previous[selectedConversationId]?.name ?? "",
+                    rootPath: previous[selectedConversationId]?.rootPath ?? "",
+                    indexMdPath: previous[selectedConversationId]?.indexMdPath ?? "",
+                    [field]: value,
+                  },
+                }));
+              }}
+              onSubmitCreate={() => {
+                void submitInlineProjectCreate();
+              }}
+            />
+          ) : null}
+
           {shouldShowIntroQuote ? (
             <div className="mt-6 rounded-xl border border-border bg-muted/30 px-5 py-6 text-center sm:px-6">
               <p
@@ -2548,12 +2893,13 @@ export default function ChatWorkspace() {
         onMentionTrigger={onComposerMentionTrigger}
         onOpenWorkspacePicker={onOpenWorkspacePickerFromButton}
         disabled={!canSubmitComposer}
-        interactionLocked={selectedConversationBusy || isCreatingConversation || isUploadingAttachments}
+        interactionLocked={selectedConversationBusy || composerLockedByProjectCreate || isCreatingConversation || isUploadingAttachments}
         isCreatingConversation={isCreatingConversation}
         isUploadingAttachments={isUploadingAttachments}
         connectionState={connectionState}
         hasConfigError={Boolean(wsResolution.error)}
         sendError={selectedSendError}
+        clarificationState={selectedPendingProjectClarification?.state ?? null}
         selectedAttachments={attachmentDrafts}
         selectedWorkspaceRefs={workspaceRefDrafts}
         attachmentError={attachmentError}
@@ -2783,6 +3129,11 @@ function SidebarContent({
                       </span>
                     ) : null}
                   </div>
+                  {conversation.project ? (
+                    <p className="mt-1 truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      {conversation.project.name}
+                    </p>
+                  ) : null}
                   {conversation.summaryShort ? (
                     <p className="mt-1 whitespace-normal break-words text-xs text-muted-foreground">
                       {conversation.summaryShort}
@@ -2960,6 +3311,121 @@ function ConnectionBadge({ state, reconnectAttempts, hasConfigError, onRetry }: 
   );
 }
 
+function ProjectContextBanner({ project }: { project: ProjectSummary }) {
+  return (
+    <section className="mb-4 rounded-2xl border border-border bg-background/92 px-4 py-3 sm:px-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        Active project context
+      </p>
+      <div className="mt-2 flex flex-col gap-1">
+        <p className="text-sm font-semibold text-foreground">{project.name}</p>
+        <p className="break-all font-mono text-xs text-muted-foreground">{project.rootPath}</p>
+        {project.indexMdPath ? (
+          <p className="break-all font-mono text-[11px] text-muted-foreground">
+            Index: {project.indexMdPath}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+type ProjectClarificationCardProps = {
+  clarification: PendingProjectClarification;
+  createDraft: { name: string; rootPath: string; indexMdPath: string };
+  busy: boolean;
+  onSelectOption: (selection: number) => void;
+  onCreateDraftChange: (field: "name" | "rootPath" | "indexMdPath", value: string) => void;
+  onSubmitCreate: () => void;
+};
+
+function ProjectClarificationCard({
+  clarification,
+  createDraft,
+  busy,
+  onSelectOption,
+  onCreateDraftChange,
+  onSubmitCreate,
+}: ProjectClarificationCardProps) {
+  return (
+    <section className="mb-4 rounded-[24px] border border-border bg-background/94 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.04)] sm:p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        Project clarification
+      </p>
+      <p className="mt-2 text-sm text-foreground sm:text-base">{clarification.question}</p>
+
+      {clarification.state === "awaiting_selection" ? (
+        <div className="mt-4 grid gap-2">
+          {(clarification.options ?? []).map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className="rounded-2xl border border-border bg-background px-4 py-3 text-left transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => onSelectOption(option.number)}
+              disabled={busy}
+            >
+              <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Option {option.number}
+              </span>
+              <span className="mt-1 block text-sm font-medium text-foreground">{option.label}</span>
+            </button>
+          ))}
+          {clarification.allowCreate ? (
+            <button
+              type="button"
+              className="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-3 text-left text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => onSelectOption(0)}
+              disabled={busy}
+            >
+              Start a new project
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="mb-1.5 block font-medium text-foreground">Project name</span>
+            <input
+              value={createDraft.name}
+              onChange={(event) => onCreateDraftChange("name", event.target.value)}
+              placeholder="agentmobile"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
+            />
+          </label>
+          <label className="text-sm sm:col-span-2">
+            <span className="mb-1.5 block font-medium text-foreground">Root path</span>
+            <input
+              value={createDraft.rootPath}
+              onChange={(event) => onCreateDraftChange("rootPath", event.target.value)}
+              placeholder="/workspace/project"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
+            />
+          </label>
+          <label className="text-sm sm:col-span-2">
+            <span className="mb-1.5 block font-medium text-foreground">Index markdown path</span>
+            <input
+              value={createDraft.indexMdPath}
+              onChange={(event) => onCreateDraftChange("indexMdPath", event.target.value)}
+              placeholder="/workspace/project/INDEX.md"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
+            />
+          </label>
+          <div className="sm:col-span-2">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-xl border border-border bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={onSubmitCreate}
+              disabled={busy}
+            >
+              Create project and continue
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 type MessageTimelineProps = {
   isLoading: boolean;
   errorMessage: string | null;
@@ -3072,6 +3538,7 @@ type ComposerPanelProps = {
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
   hasConfigError: boolean;
   sendError: string | null;
+  clarificationState: "awaiting_selection" | "awaiting_create" | null;
   selectedAttachments: AttachmentDraft[];
   selectedWorkspaceRefs: ComposerWorkspaceFileRef[];
   attachmentError: string | null;
@@ -3097,6 +3564,7 @@ function ComposerPanel({
   connectionState,
   hasConfigError,
   sendError,
+  clarificationState,
   selectedAttachments,
   selectedWorkspaceRefs,
   attachmentError,
@@ -3136,6 +3604,11 @@ function ComposerPanel({
     sendError ??
     attachmentError ??
     workspaceRefError ??
+    (clarificationState === "awaiting_create"
+      ? "Finish the inline project form above to continue this turn."
+      : clarificationState === "awaiting_selection"
+        ? "Reply with one of the listed project numbers."
+        : null) ??
     (isCreatingConversation
       ? "Creating conversation…"
       : isUploadingAttachments
@@ -3210,7 +3683,13 @@ function ComposerPanel({
               onChange={(event) => setValue(event.target.value)}
               onKeyDown={onKeyDown}
               rows={1}
-              placeholder="Send a message…"
+              placeholder={
+                clarificationState === "awaiting_selection"
+                  ? "Reply with a project number…"
+                  : clarificationState === "awaiting_create"
+                    ? "Use the inline project form above…"
+                    : "Send a message…"
+              }
               disabled={interactionLocked}
               className="max-h-40 min-h-10 w-full resize-none rounded-full border border-border bg-background px-4 py-2 text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/15"
             />

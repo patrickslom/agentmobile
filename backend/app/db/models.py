@@ -59,6 +59,12 @@ class User(Base):
 
 class Conversation(Base):
     __tablename__ = "conversations"
+    __table_args__ = (
+        CheckConstraint(
+            "project_mode IN ('unknown', 'general', 'project_bound')",
+            name="ck_conversations_project_mode",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -68,6 +74,21 @@ class Conversation(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     summary_short: Mapped[str | None] = mapped_column(String(255), nullable=True)
     codex_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    project_mode: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        server_default=text("'unknown'"),
+    )
+    project_clarification_json: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
     title_generated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     summary_generated_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -83,6 +104,40 @@ class Conversation(Base):
     # Soft-delete marker semantics used across archivable tables:
     # NULL => active row, non-NULL TIMESTAMPTZ => archived row.
     archived_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_projects_name"),
+        UniqueConstraint("root_path", name="uq_projects_root_path"),
+        CheckConstraint("char_length(trim(name)) > 0", name="ck_projects_name_not_empty"),
+        CheckConstraint("char_length(trim(root_path)) > 0", name="ck_projects_root_path_not_empty"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    root_path: Mapped[str] = mapped_column(String(2048), nullable=False)
+    index_md_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("true"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
 
 
 class Message(Base):

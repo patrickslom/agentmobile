@@ -16,10 +16,11 @@ from app.db.archive_queries import (
     list_messages_for_conversation,
     search_conversations,
 )
-from app.db.models import Conversation, File, Message, MessageBookmark, Settings, User
+from app.db.models import Conversation, File, Message, MessageBookmark, Project, Settings, User
 from app.db.session import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.domains.chat.title_summary import DEFAULT_CONVERSATION_TITLE
+from app.domains.projects.service import sanitize_pending_project_clarification
 from app.domains.warnings import WarningPayload, build_warning_payloads
 
 router = APIRouter(prefix="/conversations", tags=["chat"])
@@ -80,6 +81,9 @@ class ConversationResponse(BaseModel):
     archived_at: datetime | None
     is_archived: bool
     relevance_score: float | None = None
+    project_mode: str
+    project: "ProjectSummaryResponse | None" = None
+    pending_project_clarification: dict[str, object] | None = None
 
 
 class SearchPaginationResponse(BaseModel):
@@ -92,6 +96,14 @@ class SearchPaginationResponse(BaseModel):
 
 class ConversationDetailResponse(ConversationResponse):
     messages: list[MessageResponse]
+
+
+class ProjectSummaryResponse(BaseModel):
+    id: str
+    name: str
+    root_path: str
+    index_md_path: str | None
+    is_active: bool
 
 
 def _normalize_title_or_default(title: str | None) -> str:
@@ -162,6 +174,7 @@ def _message_author_identity(
 def _conversation_to_response(
     conversation: Conversation,
     *,
+    project: Project | None = None,
     relevance_score: float | None = None,
 ) -> ConversationResponse:
     return ConversationResponse(
@@ -176,6 +189,21 @@ def _conversation_to_response(
         archived_at=conversation.archived_at,
         is_archived=conversation.archived_at is not None,
         relevance_score=relevance_score,
+        project_mode=conversation.project_mode,
+        project=(
+            ProjectSummaryResponse(
+                id=str(project.id),
+                name=project.name,
+                root_path=project.root_path,
+                index_md_path=project.index_md_path,
+                is_active=project.is_active,
+            )
+            if project is not None
+            else None
+        ),
+        pending_project_clarification=sanitize_pending_project_clarification(
+            conversation.project_clarification_json,
+        ),
     )
 
 
@@ -239,9 +267,16 @@ def get_conversations(
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     conversations = list_conversations(db, include_archived=include_archived, limit=200)
+    project_rows = {
+        project.id: project
+        for project in db.execute(select(Project).where(Project.id.in_([
+            conversation.project_id for conversation in conversations if conversation.project_id is not None
+        ]))).scalars()
+    } if conversations else {}
     return {
         "conversations": [
-            _conversation_to_response(conversation) for conversation in conversations
+            _conversation_to_response(conversation, project=project_rows.get(conversation.project_id))
+            for conversation in conversations
         ],
         "warnings": _warning_payloads(db),
     }
@@ -299,7 +334,11 @@ def search_conversation_index(
 
     return {
         "conversations": [
-            _conversation_to_response(conversation, relevance_score=relevance_score)
+            _conversation_to_response(
+                conversation,
+                project=db.get(Project, conversation.project_id) if conversation.project_id is not None else None,
+                relevance_score=relevance_score,
+            )
             for conversation, relevance_score in search_results
         ],
         "pagination": pagination,
@@ -356,7 +395,10 @@ def get_conversation_detail(
     )
 
     detail = ConversationDetailResponse(
-        **_conversation_to_response(conversation).model_dump(),
+        **_conversation_to_response(
+            conversation,
+            project=db.get(Project, conversation.project_id) if conversation.project_id is not None else None,
+        ).model_dump(),
         messages=[
             _message_to_response(
                 message,
@@ -394,6 +436,9 @@ def rename_conversation(
     db.commit()
     db.refresh(conversation)
     return {
-        "conversation": _conversation_to_response(conversation),
+        "conversation": _conversation_to_response(
+            conversation,
+            project=db.get(Project, conversation.project_id) if conversation.project_id is not None else None,
+        ),
         "warnings": _warning_payloads(db),
     }

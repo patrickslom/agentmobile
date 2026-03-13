@@ -15,6 +15,27 @@ export type WorkspaceFileRef = {
   displayName: string;
 };
 
+export type ProjectSummary = {
+  id: string;
+  name: string;
+  rootPath: string;
+  indexMdPath?: string | null;
+  isActive: boolean;
+};
+
+export type PendingProjectClarification = {
+  state: "awaiting_selection" | "awaiting_create";
+  question: string;
+  options?: Array<{
+    number: number;
+    id: string;
+    label: string;
+    name?: string;
+    rootPath?: string;
+  }>;
+  allowCreate?: boolean;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -61,6 +82,29 @@ export type AssistantWaitingEvent = {
   conversation_id?: string;
 };
 
+export type AssistantClarifyEvent = {
+  type: "assistant_clarify";
+  conversationId?: string;
+  conversation_id?: string;
+  question?: string;
+  expected_reply?: "number";
+  allow_create?: boolean;
+  options?: Array<{
+    number?: number;
+    id?: string;
+    label?: string;
+    name?: string;
+    root_path?: string;
+  }>;
+};
+
+export type AssistantProjectCreateEvent = {
+  type: "assistant_project_create";
+  conversationId?: string;
+  conversation_id?: string;
+  question?: string;
+};
+
 export type MessageCreatedEvent = {
   type: "message_created";
   conversationId?: string;
@@ -103,6 +147,32 @@ export type ConversationBusyEvent = {
   conversation_id?: string;
   busy?: boolean;
   is_busy?: boolean;
+};
+
+export type ConversationProjectStateEvent = {
+  type: "conversation_project_state";
+  conversationId?: string;
+  conversation_id?: string;
+  project_mode?: "unknown" | "general" | "project_bound";
+  project?: {
+    id?: string;
+    name?: string;
+    root_path?: string;
+    index_md_path?: string | null;
+    is_active?: boolean;
+  } | null;
+  pending_project_clarification?: {
+    state?: "awaiting_selection" | "awaiting_create";
+    question?: string;
+    options?: Array<{
+      number?: number;
+      id?: string;
+      label?: string;
+      name?: string;
+      root_path?: string;
+    }>;
+    allow_create?: boolean;
+  } | null;
 };
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";

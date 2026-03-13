@@ -11,10 +11,7 @@
 - TODO progress updates must only check off tasks that are actually implemented and validated.
 
 ## Build Execution Rules
-- Follow `docs/builderLOOP.md` for execution order and one-task-per-run behavior.
-- Start each run by selecting the next unchecked task from TODO files in priority order.
-- Ask the user 3 short questions before implementing each task.
-- After each completed task: validate, mark TODO complete, commit only files modified in this run, push to `master`, rebuild containers, smoke check, then stop.
+- After each completed task: validate, update any relevant TODO/docs status, commit only files modified in this run, push to `master`, rebuild containers, smoke check, then stop.
 - Commit/push rule: write context-rich commit messages that clearly describe what changed, why, and major files affected. Stage only files you modified for the selected task unless the user explicitly requests a broader commit.
 - Any time a change is committed or pushed to `master`, update `docs/CHANGELOG.md` in the same run to record the change.
 
@@ -30,8 +27,9 @@
   - Before creating anything new, first check whether an existing setup/pattern already exists and follow it.
   - If no suitable existing setup/pattern exists, explicitly state that before introducing a new pattern.
 - When designing or generating new features, always prioritize efficiency. Check for potential resource-heavy operations (large data scans, excessive loops, frequent queries), and propose optimized approaches (indexing, caching, or denormalizing) before finalizing any solution.
+- Everything we build must be mobile responsive by default.
 - All user-facing pages and reusable UI components must be responsive and verified for desktop, tablet, and phone viewports.
-- Keep changes scoped to the selected task; do not bundle unrelated refactors.
+- Keep changes scoped to the requested task; do not bundle unrelated refactors.
 - Do not remove existing warnings, limits, or lock behavior without explicit user approval.
 - Respect core defaults unless user changes them:
   - YOLO available to all users

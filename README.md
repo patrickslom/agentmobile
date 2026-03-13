@@ -34,6 +34,7 @@ Privacy notice:
 Deploy once, then use it from desktop or phone:
 - start new chats
 - resume previous chats
+- create and manage shared workspace projects with root paths and optional `INDEX.md` context files
 - bookmark assistant responses for later
 - upload files, preview images inline, and open attachments in a new tab
 - optionally run scheduled heartbeat instructions
@@ -203,16 +204,18 @@ Use a full production rebuild when you change frontend dependencies or want the 
 3. Click `New chat` to start a conversation.
 4. Optionally attach files; app stores them in the managed files directory.
 5. Optionally use `@` in the composer to open a workspace file picker, browse folders or search by filename, and attach one or more workspace files as structured turn context.
-6. Send message and the chat immediately shows a pending assistant `...` state, then streams the Codex response in place (uploaded attachments and selected workspace file paths are sent with the message and shown in chat).
-7. In shared conversations, human messages show sender identity:
+6. If a turn looks project-specific and the conversation has no bound project yet, chat asks which project to use, offers numbered project options, and can create a new project inline.
+7. Send message and the chat immediately shows a pending assistant `...` state, then streams the Codex response in place (uploaded attachments, selected workspace file paths, and active project context are sent with the message and shown in chat).
+8. In shared conversations, human messages show sender identity:
    - your messages: `YOU`, right-aligned
    - other users' messages: sender name (or profile picture initials), left-aligned
    - assistant messages remain full-width and unlabeled by user identity
-8. Use the `Chat` module landing page to search history, review recent conversations, and reopen old threads.
-9. Bookmark helpful assistant messages and revisit them from the dedicated Bookmarks view, filtered to either your own saves or all user saves.
-10. Upload files into chat and download generated/shared files.
-11. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
-12. After the first 2 exchanges, the app generates a clearer chat title and short sidebar summary in the background and refreshes the sidebar when that metadata is ready.
+9. Use the `Chat` module landing page to search history, review recent conversations, and reopen old threads.
+10. Manage project definitions from the `Projects` module, including root path, optional `INDEX.md`, and active/inactive status.
+11. Bookmark helpful assistant messages and revisit them from the dedicated Bookmarks view, filtered to either your own saves or all user saves.
+12. Upload files into chat and download generated/shared files.
+13. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
+14. After the first 2 exchanges, the app generates a clearer chat title and short sidebar summary in the background and refreshes the sidebar when that metadata is ready.
 
 Codex integration model:
 - This app uses the existing Codex installation/auth on your VPS.
@@ -227,6 +230,7 @@ Host runtime mode:
 ## Mobile UX expectations
 
 - Shared module shell across `Chat`, `Bookmarks`, `Projects`, `Heartbeats`, `Settings`, and `Admin` (admin only).
+- `Projects` is a real management module, not a placeholder: users can define shared project roots and optional `INDEX.md` files from desktop or mobile.
 - Desktop: collapsible left sidebar with icons-only collapsed mode and icon + label expanded mode.
 - Mobile: hamburger button opens a full-screen navigation drawer with the same module links and pinned logout action.
 - `/chat` is a dedicated landing page with search, recent history, and `New chat`.

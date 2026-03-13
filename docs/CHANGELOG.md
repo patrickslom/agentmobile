@@ -13,6 +13,7 @@ Example:
 - `2026-03-08 - Add changelog - Created docs/CHANGELOG.md with usage instructions and entry format guidance.`
 
 Entries:
+- `2026-03-12 - Add project-aware chat context - Implemented shared projects CRUD, conversation project binding/clarification in websocket turns, inline project creation from chat, and responsive frontend project management UI.`
 - `2026-03-12 - Add route-first module shell and chat landing page - Implemented a shared responsive app shell with top-level modules, moved heartbeats/admin to their own routes, added the chat landing page, fixed mobile overflow issues, and restored new-chat intro behavior.`
 - `2026-03-12 - Add workspace @ file references - Implemented responsive workspace file picking with structured per-message file refs, backend path resolution, and composer/message UI support for attached workspace files.`
 - `2026-03-09 - Refresh landing/login UI and repo assets - Simplified the home page CTA area, fixed Android login form contrast/theme behavior, updated the README title, and replaced the old image asset with a new screenshot file.`

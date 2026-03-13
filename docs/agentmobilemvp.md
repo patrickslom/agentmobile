@@ -41,6 +41,8 @@ Minimum safety expectations:
   - Start new conversation
   - See past conversations
   - Resume an existing conversation (continue context)
+  - Ask for project clarification when a turn looks project-specific and the conversation has no bound project yet
+  - Bind the conversation to a shared project so future turns inherit that project context
   - Bookmark assistant messages per user and reopen them from a dedicated bookmarks view with `Mine` and `All` filters
   - Heartbeats live in a dedicated top-level module
   - Admin user management lives in a dedicated admin-only module
@@ -214,6 +216,16 @@ Later:
 - One workspace per conversation (git worktree or container copy)
 - Project-aware conversations can eventually provide the default picker directory, but users should still be able to navigate outside that default inside the configured workspace
 
+### Projects domain (phase 1)
+- Shared `projects` records store:
+  - project name
+  - root path
+  - optional `INDEX.md` path
+  - active/inactive status
+- Project selection happens in backend preflight before Codex turn execution.
+- When ambiguous, chat emits a structured clarification event with numbered options and an inline create-project path.
+- When a project is bound, backend prepends project context to the turn prompt before forwarding the request to Codex.
+
 ---
 
 ## Conversation Persistence (DB)
@@ -261,6 +273,10 @@ Later:
 - `POST /conversations` (new chat)
 - `GET /conversations/:id`
 - `POST /conversations/:id/title` (optional)
+- `GET /projects`
+- `POST /projects`
+- `PATCH /projects/:id`
+- `GET /projects/:id/index`
 - `GET /bookmarks`
 - `POST /bookmarks`
 - `DELETE /bookmarks/:message_id`
@@ -304,6 +320,7 @@ Later:
   - Mobile: full-screen sidebar drawer, opened by hamburger menu
 - Main:
   - `/chat` landing page with search, recent conversation history, and “New chat”
+  - `/projects` management page with responsive create/edit/toggle-active controls
   - Conversation detail view when a chat is selected
   - Message list with roles and formatting
   - Immediate pending assistant `...` placeholder after send acceptance

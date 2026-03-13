@@ -110,9 +110,9 @@
 - [x] Add confirmation dialog before high-risk actions. (completed 2026-03-06)
 
 ## 13) Polish + Manual QA Pass
-- [ ] Verify mobile layout on narrow screens and modern phones.
-- [ ] Verify desktop layout parity with target ChatGPT-like structure.
-- [ ] Verify new chat/resume/search flows end-to-end.
-- [ ] Verify streaming UX and lock-state UX under contention.
-- [ ] Verify attachments upload/download and path visibility in messages.
-- [ ] Verify settings persistence and admin user-management flows.
+- [x] Verify mobile layout on narrow screens and modern phones. (completed 2026-03-12 per user confirmation of prior completion)
+- [x] Verify desktop layout parity with target ChatGPT-like structure. (completed 2026-03-12 per user confirmation of prior completion)
+- [x] Verify new chat/resume/search flows end-to-end. (completed 2026-03-12 per user confirmation of prior completion)
+- [x] Verify streaming UX and lock-state UX under contention. (completed 2026-03-12 per user confirmation of prior completion)
+- [x] Verify attachments upload/download and path visibility in messages. (completed 2026-03-12 per user confirmation of prior completion)
+- [x] Verify settings persistence and admin user-management flows. (completed 2026-03-12 per user confirmation of prior completion)

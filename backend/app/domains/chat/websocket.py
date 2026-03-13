@@ -12,11 +12,12 @@ from uuid import UUID, uuid4
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.archive_queries import get_conversation
-from app.db.models import Message, Settings, User
+from app.db.models import Conversation, Message, Project, Settings, User
 from app.db.session import SessionLocal
 from app.domains.chat.title_summary import enqueue_title_summary_job_if_ready
 from app.domains.codex.runtime import (
@@ -30,6 +31,15 @@ from app.domains.codex.runtime import (
 from app.domains.files.service import assign_files_to_message
 from app.domains.files.workspace_service import resolve_workspace_file_refs
 from app.domains.locks.service import LockState, conversation_lock_service
+from app.domains.projects.service import (
+    ProjectResolution,
+    build_project_context_block,
+    build_project_options,
+    get_project,
+    resolve_project_for_content,
+    sanitize_pending_project_clarification,
+    validate_project_paths,
+)
 
 logger = logging.getLogger("app.api")
 
@@ -66,7 +76,25 @@ class StopEvent(BaseModel):
     conversation_id: UUID
 
 
-ClientEvent = ResumeEvent | SendMessageEvent | StopEvent
+class ProjectClarifyReplyEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    type: Literal["project_clarify_reply"]
+    conversation_id: UUID
+    selection: int
+
+
+class CreateProjectEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    type: Literal["create_project"]
+    conversation_id: UUID
+    name: str
+    root_path: str
+    index_md_path: str | None = None
+
+
+ClientEvent = ResumeEvent | SendMessageEvent | StopEvent | ProjectClarifyReplyEvent | CreateProjectEvent
 
 
 class ClientEventError(Exception):
@@ -122,6 +150,26 @@ class ChatWebSocketService:
                     await self._handle_stop(websocket, user=user, event=event)
                     continue
 
+                if isinstance(event, ProjectClarifyReplyEvent):
+                    await self._handle_project_clarify_reply(
+                        websocket,
+                        user=user,
+                        request_id=request_id,
+                        connection_id=connection_id,
+                        event=event,
+                    )
+                    continue
+
+                if isinstance(event, CreateProjectEvent):
+                    await self._handle_create_project(
+                        websocket,
+                        user=user,
+                        request_id=request_id,
+                        connection_id=connection_id,
+                        event=event,
+                    )
+                    continue
+
                 await self._handle_send_message(
                     websocket,
                     user=user,
@@ -161,6 +209,7 @@ class ChatWebSocketService:
 
     async def _handle_resume(self, websocket: WebSocket, *, event: ResumeEvent) -> None:
         conversation_id = event.conversation_id
+        pending_clarification: dict[str, Any] | None = None
         with SessionLocal() as db:
             conversation = get_conversation(db, conversation_id, include_archived=False)
             if conversation is None:
@@ -182,9 +231,18 @@ class ChatWebSocketService:
                 .order_by(Message.created_at.desc())
                 .limit(1)
             ).scalar_one_or_none()
+            pending_clarification = sanitize_pending_project_clarification(
+                conversation.project_clarification_json,
+            )
 
         await self._subscribe_socket_to_conversation(websocket, conversation_id)
         await self._emit_busy_state_for_socket(websocket, conversation_id=conversation_id)
+        if pending_clarification is not None:
+            await self._send_pending_project_clarification(
+                websocket,
+                conversation_id=conversation_id,
+                payload=pending_clarification,
+            )
 
         if latest_assistant_message is not None:
             await self._send_json(
@@ -314,6 +372,106 @@ class ChatWebSocketService:
         self._active_turn_tasks[conversation_id] = task
         self._active_turn_stop_events[conversation_id] = stop_event
 
+    async def _handle_project_clarify_reply(
+        self,
+        websocket: WebSocket,
+        *,
+        user: User,
+        request_id: str,
+        connection_id: str,
+        event: ProjectClarifyReplyEvent,
+    ) -> None:
+        await self._subscribe_socket_to_conversation(websocket, event.conversation_id)
+        owner_token = str(uuid4())
+        with SessionLocal() as db:
+            acquire_result = conversation_lock_service.acquire(
+                db,
+                conversation_id=event.conversation_id,
+                user_id=user.id,
+                owner_token=owner_token,
+                metadata={
+                    "connection_id": connection_id,
+                    "request_id": request_id,
+                    "source": "websocket_project_clarify_reply",
+                },
+            )
+
+        if not acquire_result.acquired:
+            await self._broadcast_thread_busy_state(event.conversation_id, state=acquire_result.state)
+            await self._send_error(
+                websocket,
+                code="THREAD_BUSY",
+                message="thread busy",
+                details={"conversation_id": str(event.conversation_id), "busy": True},
+            )
+            return
+
+        await self._broadcast_thread_busy_state(event.conversation_id, state=acquire_result.state)
+        stop_event = asyncio.Event()
+        task = asyncio.create_task(
+            self._resolve_project_selection(
+                conversation_id=event.conversation_id,
+                selection=event.selection,
+                user=user,
+                request_id=request_id,
+                owner_token=owner_token,
+                stop_event=stop_event,
+            )
+        )
+        self._active_turn_tasks[event.conversation_id] = task
+        self._active_turn_stop_events[event.conversation_id] = stop_event
+
+    async def _handle_create_project(
+        self,
+        websocket: WebSocket,
+        *,
+        user: User,
+        request_id: str,
+        connection_id: str,
+        event: CreateProjectEvent,
+    ) -> None:
+        await self._subscribe_socket_to_conversation(websocket, event.conversation_id)
+        owner_token = str(uuid4())
+        with SessionLocal() as db:
+            acquire_result = conversation_lock_service.acquire(
+                db,
+                conversation_id=event.conversation_id,
+                user_id=user.id,
+                owner_token=owner_token,
+                metadata={
+                    "connection_id": connection_id,
+                    "request_id": request_id,
+                    "source": "websocket_create_project",
+                },
+            )
+
+        if not acquire_result.acquired:
+            await self._broadcast_thread_busy_state(event.conversation_id, state=acquire_result.state)
+            await self._send_error(
+                websocket,
+                code="THREAD_BUSY",
+                message="thread busy",
+                details={"conversation_id": str(event.conversation_id), "busy": True},
+            )
+            return
+
+        await self._broadcast_thread_busy_state(event.conversation_id, state=acquire_result.state)
+        stop_event = asyncio.Event()
+        task = asyncio.create_task(
+            self._create_project_and_resume_pending_turn(
+                conversation_id=event.conversation_id,
+                name=event.name,
+                root_path=event.root_path,
+                index_md_path=event.index_md_path,
+                user=user,
+                request_id=request_id,
+                owner_token=owner_token,
+                stop_event=stop_event,
+            )
+        )
+        self._active_turn_tasks[event.conversation_id] = task
+        self._active_turn_stop_events[event.conversation_id] = stop_event
+
     async def _run_turn(
         self,
         *,
@@ -331,6 +489,7 @@ class ChatWebSocketService:
         thread_id: str | None = None
         turn_id: str | None = None
         message_file_paths: list[str] = []
+        project_context_block: str | None = None
         heartbeat_stop = asyncio.Event()
         heartbeat_task = asyncio.create_task(
             self._heartbeat_lock(
@@ -350,6 +509,28 @@ class ChatWebSocketService:
                         message="Conversation not found",
                     )
                     return
+
+                project_resolution = self._apply_project_preflight(
+                    db,
+                    conversation=conversation,
+                    user=user,
+                    content=content,
+                    file_ids=file_ids,
+                    file_refs=file_refs,
+                    client_message_id=client_message_id,
+                    request_id=request_id,
+                )
+                if project_resolution.mode == "clarify":
+                    await self._broadcast_pending_project_clarification(conversation)
+                    return
+                if project_resolution.project is not None:
+                    project_context_block = build_project_context_block(project_resolution.project)
+                    await self._broadcast_conversation_project_state(
+                        conversation_id=conversation_id,
+                        project=project_resolution.project,
+                        project_mode=conversation.project_mode,
+                        pending_clarification=None,
+                    )
 
                 thread_id = conversation.codex_thread_id
                 settings_row = db.get(Settings, 1)
@@ -450,7 +631,11 @@ class ChatWebSocketService:
             )
             await self._broadcast_assistant_waiting(conversation_id)
 
-            prompt = _build_prompt_with_files(content=content, file_paths=message_file_paths)
+            prompt = _build_prompt_with_files(
+                content=content,
+                file_paths=message_file_paths,
+                project_context_block=project_context_block,
+            )
             turn_result = await codex_process_runner.run_turn(
                 prompt=prompt,
                 existing_thread_id=thread_id,
@@ -639,6 +824,366 @@ class ChatWebSocketService:
                 )
                 current_state = conversation_lock_service.get_state(db, conversation_id=conversation_id)
             await self._broadcast_thread_busy_state(conversation_id, state=current_state)
+
+    def _apply_project_preflight(
+        self,
+        db: Session,
+        *,
+        conversation: Conversation,
+        user: User,
+        content: str,
+        file_ids: list[UUID],
+        file_refs: list[WorkspaceFileRefInput],
+        client_message_id: str | None,
+        request_id: str,
+    ) -> ProjectResolution:
+        resolution = resolve_project_for_content(
+            db,
+            content=content,
+            conversation=conversation,
+        )
+        if resolution.mode == "clarify":
+            conversation.project_clarification_json = {
+                "state": "awaiting_selection",
+                "question": "Which project are you working on?",
+                "options": build_project_options(resolution.options),
+                "allow_create": True,
+                "pending_user_id": str(user.id),
+                "pending_request_id": request_id,
+                "pending_content": content,
+                "pending_file_ids": [str(file_id) for file_id in file_ids],
+                "pending_file_refs": [
+                    {"kind": file_ref.kind, "relative_path": file_ref.relative_path}
+                    for file_ref in file_refs
+                ],
+                "pending_client_message_id": client_message_id,
+            }
+            conversation.project_mode = "unknown"
+            db.commit()
+            return resolution
+        if resolution.project is not None:
+            conversation.project_id = resolution.project.id
+            conversation.project_mode = "project_bound"
+            conversation.project_clarification_json = {}
+            db.commit()
+            return resolution
+
+        conversation.project_clarification_json = {}
+        conversation.project_mode = "general"
+        db.commit()
+        return resolution
+
+    async def _resolve_project_selection(
+        self,
+        *,
+        conversation_id: UUID,
+        selection: int,
+        user: User,
+        request_id: str,
+        owner_token: str,
+        stop_event: asyncio.Event,
+    ) -> None:
+        resumed_turn = False
+        try:
+            with SessionLocal() as db:
+                conversation = get_conversation(db, conversation_id, include_archived=False)
+                if conversation is None:
+                    await self._broadcast_error(conversation_id, code="NOT_FOUND", message="Conversation not found")
+                    return
+
+                pending = sanitize_pending_project_clarification(conversation.project_clarification_json)
+                raw_pending = conversation.project_clarification_json if isinstance(conversation.project_clarification_json, dict) else {}
+                self._ensure_pending_clarification_ownership(raw_pending, user=user)
+                if pending is None or pending.get("state") != "awaiting_selection":
+                    await self._broadcast_error(
+                        conversation_id,
+                        code="PROJECT_SELECTION_NOT_PENDING",
+                        message="There is no pending project selection for this conversation",
+                    )
+                    return
+
+                if selection == 0:
+                    conversation.project_clarification_json = {
+                        **raw_pending,
+                        "state": "awaiting_create",
+                        "question": "Create a new project to continue this turn.",
+                    }
+                    db.commit()
+                    await self._broadcast_pending_project_clarification(conversation)
+                    return
+
+                options = raw_pending.get("options") if isinstance(raw_pending.get("options"), list) else []
+                selected_option = next(
+                    (
+                        option
+                        for option in options
+                        if isinstance(option, dict) and option.get("number") == selection
+                    ),
+                    None,
+                )
+                if not isinstance(selected_option, dict):
+                    await self._broadcast_error(
+                        conversation_id,
+                        code="INVALID_PROJECT_SELECTION",
+                        message="Reply with one of the listed project numbers",
+                    )
+                    return
+
+                project_id = selected_option.get("id")
+                if not isinstance(project_id, str):
+                    await self._broadcast_error(
+                        conversation_id,
+                        code="INVALID_PROJECT_SELECTION",
+                        message="Reply with one of the listed project numbers",
+                    )
+                    return
+
+                project = get_project(db, UUID(project_id))
+                if project is None or not project.is_active:
+                    await self._broadcast_error(
+                        conversation_id,
+                        code="PROJECT_NOT_FOUND",
+                        message="Selected project is no longer available",
+                    )
+                    return
+
+                conversation.project_id = project.id
+                conversation.project_mode = "project_bound"
+                conversation.project_clarification_json = {}
+                db.commit()
+                pending_turn = _extract_pending_turn_payload(raw_pending)
+
+            await self._broadcast_conversation_project_state(
+                conversation_id=conversation_id,
+                project=project,
+                project_mode="project_bound",
+                pending_clarification=None,
+            )
+            await self._run_turn(
+                conversation_id=conversation_id,
+                user=user,
+                request_id=pending_turn["request_id"] or request_id,
+                content=pending_turn["content"],
+                file_ids=pending_turn["file_ids"],
+                file_refs=pending_turn["file_refs"],
+                client_message_id=pending_turn["client_message_id"],
+                owner_token=owner_token,
+                stop_event=stop_event,
+            )
+            resumed_turn = True
+        except AppError as exc:
+            await self._broadcast_to_conversation(
+                conversation_id,
+                {
+                    "type": "error",
+                    "conversation_id": str(conversation_id),
+                    "code": exc.code,
+                    "message": exc.message,
+                    "details": {**exc.details, "conversation_id": str(conversation_id), "busy": False},
+                },
+            )
+        finally:
+            if resumed_turn:
+                return
+            self._active_turn_tasks.pop(conversation_id, None)
+            self._active_turn_stop_events.pop(conversation_id, None)
+            with SessionLocal() as db:
+                conversation_lock_service.release(
+                    db,
+                    conversation_id=conversation_id,
+                    owner_token=owner_token,
+                )
+                current_state = conversation_lock_service.get_state(db, conversation_id=conversation_id)
+            await self._broadcast_thread_busy_state(conversation_id, state=current_state)
+
+    async def _create_project_and_resume_pending_turn(
+        self,
+        *,
+        conversation_id: UUID,
+        name: str,
+        root_path: str,
+        index_md_path: str | None,
+        user: User,
+        request_id: str,
+        owner_token: str,
+        stop_event: asyncio.Event,
+    ) -> None:
+        resumed_turn = False
+        try:
+            normalized_root, normalized_index = validate_project_paths(
+                root_path=root_path,
+                index_md_path=index_md_path,
+            )
+            with SessionLocal() as db:
+                conversation = get_conversation(db, conversation_id, include_archived=False)
+                if conversation is None:
+                    await self._broadcast_error(conversation_id, code="NOT_FOUND", message="Conversation not found")
+                    return
+
+                raw_pending = conversation.project_clarification_json if isinstance(conversation.project_clarification_json, dict) else {}
+                self._ensure_pending_clarification_ownership(raw_pending, user=user)
+                pending = sanitize_pending_project_clarification(raw_pending)
+                if pending is None or pending.get("state") != "awaiting_create":
+                    await self._broadcast_error(
+                        conversation_id,
+                        code="PROJECT_CREATE_NOT_PENDING",
+                        message="Project creation is not pending for this conversation",
+                    )
+                    return
+
+                project = Project(
+                    name=name.strip(),
+                    root_path=normalized_root,
+                    index_md_path=normalized_index,
+                )
+                db.add(project)
+                db.flush()
+
+                conversation.project_id = project.id
+                conversation.project_mode = "project_bound"
+                conversation.project_clarification_json = {}
+                db.commit()
+                pending_turn = _extract_pending_turn_payload(raw_pending)
+
+            await self._broadcast_conversation_project_state(
+                conversation_id=conversation_id,
+                project=project,
+                project_mode="project_bound",
+                pending_clarification=None,
+            )
+            await self._run_turn(
+                conversation_id=conversation_id,
+                user=user,
+                request_id=pending_turn["request_id"] or request_id,
+                content=pending_turn["content"],
+                file_ids=pending_turn["file_ids"],
+                file_refs=pending_turn["file_refs"],
+                client_message_id=pending_turn["client_message_id"],
+                owner_token=owner_token,
+                stop_event=stop_event,
+            )
+            resumed_turn = True
+        except AppError as exc:
+            await self._broadcast_to_conversation(
+                conversation_id,
+                {
+                    "type": "error",
+                    "conversation_id": str(conversation_id),
+                    "code": exc.code,
+                    "message": exc.message,
+                    "details": {**exc.details, "conversation_id": str(conversation_id), "busy": False},
+                },
+            )
+        except Exception as exc:
+            await self._broadcast_error(
+                conversation_id,
+                code="PROJECT_CREATE_FAILED",
+                message=str(exc),
+            )
+        finally:
+            if resumed_turn:
+                return
+            self._active_turn_tasks.pop(conversation_id, None)
+            self._active_turn_stop_events.pop(conversation_id, None)
+            with SessionLocal() as db:
+                conversation_lock_service.release(
+                    db,
+                    conversation_id=conversation_id,
+                    owner_token=owner_token,
+                )
+                current_state = conversation_lock_service.get_state(db, conversation_id=conversation_id)
+            await self._broadcast_thread_busy_state(conversation_id, state=current_state)
+
+    def _ensure_pending_clarification_ownership(self, payload: dict[str, Any], *, user: User) -> None:
+        pending_user_id = payload.get("pending_user_id")
+        if isinstance(pending_user_id, str) and pending_user_id != str(user.id):
+            raise AppError(
+                status_code=403,
+                code="PROJECT_SELECTION_FORBIDDEN",
+                message="Only the user who triggered the pending clarification can resolve it",
+                details={},
+            )
+
+    async def _send_pending_project_clarification(
+        self,
+        websocket: WebSocket,
+        *,
+        conversation_id: UUID,
+        payload: dict[str, Any],
+    ) -> None:
+        if payload.get("state") == "awaiting_create":
+            await self._send_json(
+                websocket,
+                {
+                    "type": "assistant_project_create",
+                    "conversation_id": str(conversation_id),
+                    "question": payload.get("question"),
+                },
+            )
+            return
+
+        await self._send_json(
+            websocket,
+            {
+                "type": "assistant_clarify",
+                "conversation_id": str(conversation_id),
+                "question": payload.get("question"),
+                "options": payload.get("options", []),
+                "expected_reply": "number",
+                "allow_create": bool(payload.get("allow_create", True)),
+            },
+        )
+
+    async def _broadcast_pending_project_clarification(self, conversation: Conversation) -> None:
+        payload = sanitize_pending_project_clarification(conversation.project_clarification_json)
+        if payload is None:
+            return
+        await self._broadcast_to_conversation(
+            conversation.id,
+            {
+                "type": "assistant_project_create" if payload.get("state") == "awaiting_create" else "assistant_clarify",
+                "conversation_id": str(conversation.id),
+                "question": payload.get("question"),
+                "options": payload.get("options", []),
+                "expected_reply": "number" if payload.get("state") == "awaiting_selection" else None,
+                "allow_create": bool(payload.get("allow_create", True)),
+            },
+        )
+        await self._broadcast_conversation_project_state(
+            conversation_id=conversation.id,
+            project=None,
+            project_mode=conversation.project_mode,
+            pending_clarification=payload,
+        )
+
+    async def _broadcast_conversation_project_state(
+        self,
+        *,
+        conversation_id: UUID,
+        project: Project | None,
+        project_mode: str,
+        pending_clarification: dict[str, Any] | None,
+    ) -> None:
+        await self._broadcast_to_conversation(
+            conversation_id,
+            {
+                "type": "conversation_project_state",
+                "conversation_id": str(conversation_id),
+                "project_mode": project_mode,
+                "project": (
+                    {
+                        "id": str(project.id),
+                        "name": project.name,
+                        "root_path": project.root_path,
+                        "index_md_path": project.index_md_path,
+                        "is_active": project.is_active,
+                    }
+                    if project is not None
+                    else None
+                ),
+                "pending_project_clarification": pending_clarification,
+            },
+        )
 
     async def _persist_partial_if_meaningful(
         self,
@@ -908,6 +1453,8 @@ def _normalize_client_payload(raw_payload: dict[str, object]) -> dict[str, objec
         normalized["file_refs"] = normalized["fileRefs"]
     if "client_message_id" not in normalized and "clientMessageId" in normalized:
         normalized["client_message_id"] = normalized["clientMessageId"]
+    if "index_md_path" not in normalized and "indexMdPath" in normalized:
+        normalized["index_md_path"] = normalized["indexMdPath"]
     return normalized
 
 
@@ -931,13 +1478,56 @@ def _assistant_author_fields() -> dict[str, object | None]:
     }
 
 
-def _build_prompt_with_files(*, content: str, file_paths: list[str]) -> str:
+def _build_prompt_with_files(
+    *,
+    content: str,
+    file_paths: list[str],
+    project_context_block: str | None = None,
+) -> str:
+    lines = []
+    if project_context_block:
+        lines.extend([project_context_block, ""])
+    lines.append(content)
     if not file_paths:
-        return content
-    lines = [content, "", "Available file paths for this turn (use these exact paths when reading/writing files):"]
+        return "\n".join(lines)
+    lines.extend(["", "Available file paths for this turn (use these exact paths when reading/writing files):"])
     for path in file_paths:
         lines.append(f"- {path}")
     return "\n".join(lines)
+
+
+def _extract_pending_turn_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_file_ids = payload.get("pending_file_ids")
+    file_ids: list[UUID] = []
+    if isinstance(raw_file_ids, list):
+        for raw_file_id in raw_file_ids:
+            if not isinstance(raw_file_id, str):
+                continue
+            try:
+                file_ids.append(UUID(raw_file_id))
+            except ValueError:
+                continue
+
+    raw_file_refs = payload.get("pending_file_refs")
+    file_refs: list[WorkspaceFileRefInput] = []
+    if isinstance(raw_file_refs, list):
+        for raw_file_ref in raw_file_refs:
+            if not isinstance(raw_file_ref, dict):
+                continue
+            try:
+                file_refs.append(WorkspaceFileRefInput.model_validate(raw_file_ref))
+            except ValidationError:
+                continue
+
+    return {
+        "request_id": payload.get("pending_request_id") if isinstance(payload.get("pending_request_id"), str) else None,
+        "content": payload.get("pending_content") if isinstance(payload.get("pending_content"), str) else "",
+        "file_ids": file_ids,
+        "file_refs": file_refs,
+        "client_message_id": payload.get("pending_client_message_id")
+        if isinstance(payload.get("pending_client_message_id"), str)
+        else None,
+    }
 
 
 def _parse_client_event(payload_text: str) -> ClientEvent:
@@ -966,6 +1556,10 @@ def _parse_client_event(payload_text: str) -> ClientEvent:
             return SendMessageEvent.model_validate(normalized)
         if event_type == "stop":
             return StopEvent.model_validate(normalized)
+        if event_type == "project_clarify_reply":
+            return ProjectClarifyReplyEvent.model_validate(normalized)
+        if event_type == "create_project":
+            return CreateProjectEvent.model_validate(normalized)
     except ValidationError as exc:
         raise ClientEventError(
             code="VALIDATION_ERROR",
@@ -976,7 +1570,7 @@ def _parse_client_event(payload_text: str) -> ClientEvent:
     raise ClientEventError(
         code="BAD_EVENT_TYPE",
         message="Unsupported websocket event type",
-        details={"allowed_types": ["send_message", "resume", "stop"]},
+        details={"allowed_types": ["send_message", "resume", "stop", "project_clarify_reply", "create_project"]},
     )
 
 
