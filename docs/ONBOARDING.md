@@ -98,6 +98,9 @@ For testing only:
 - Include security nudges without hard-blocking install (for example `fail2ban` recommendation).
 
 ## Future Improvements
+- Publish prebuilt images to GHCR for `backend`, `worker`, and `frontend` so setup can pull containers instead of building locally.
+- Move frontend environment values (for example domain/API/WS settings) from Docker build args to runtime config so one reusable frontend image can work across installs.
+- After that shift, prefer `docker compose pull && docker compose up -d` during install to reduce first-run time on fresh VPS hosts.
 - Interactive DNS helper per provider.
 - "Check DNS now" loop before final deploy.
 - Post-install verification script with pass/fail checklist.
