@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import re
 from typing import Any, Iterable
 from uuid import UUID
 
+from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -76,6 +78,101 @@ def validate_project_paths(*, root_path: str, index_md_path: str | None) -> tupl
                 details={"index_md_path": normalized_index, "root_path": normalized_root},
             )
     return (normalized_root, normalized_index)
+
+
+def browse_host_directories(path: str | None) -> tuple[str, list[dict[str, str]]]:
+    normalized = normalize_host_directory_path(path)
+    directory = Path(normalized)
+    entries: list[dict[str, str]] = []
+
+    try:
+        with os.scandir(directory) as scan_result:
+            for entry in scan_result:
+                try:
+                    if not entry.is_dir(follow_symlinks=False):
+                        continue
+                except OSError:
+                    continue
+
+                entry_path = Path(entry.path)
+                entries.append(
+                    {
+                        "path": str(entry_path.resolve()),
+                        "display_name": entry.name,
+                    }
+                )
+    except PermissionError as exc:
+        raise AppError(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="DIRECTORY_ACCESS_DENIED",
+            message="That directory is not accessible to the backend process",
+            details={"path": normalized},
+        ) from exc
+    except OSError as exc:
+        raise AppError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="BAD_REQUEST",
+            message="Unable to browse that directory",
+            details={"path": normalized},
+        ) from exc
+
+    entries.sort(key=lambda item: item["display_name"].lower())
+    return normalized, entries
+
+
+def search_host_directories(
+    *,
+    query: str,
+    path: str | None,
+    limit: int,
+) -> tuple[str, list[dict[str, str]]]:
+    normalized_query = query.strip().lower()
+    if not normalized_query:
+        raise AppError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="BAD_REQUEST",
+            message="Search query cannot be empty",
+            details={},
+        )
+
+    normalized_root = normalize_host_directory_path(path)
+    root = Path(normalized_root)
+    matches: list[tuple[tuple[int, int, int], dict[str, str]]] = []
+
+    def _on_walk_error(exc: OSError) -> None:
+        return None
+
+    for current_root, dir_names, _ in os.walk(root, topdown=True, followlinks=False, onerror=_on_walk_error):
+        current_root_path = Path(current_root)
+        dir_names[:] = [name for name in dir_names if not name.startswith(".git")]
+        for directory_name in dir_names:
+            lowered_name = directory_name.lower()
+            if normalized_query not in lowered_name:
+                continue
+
+            directory_path = current_root_path / directory_name
+            matches.append(
+                (
+                    _path_search_score(
+                        file_name=directory_name,
+                        absolute_path=str(directory_path),
+                        query=normalized_query,
+                    ),
+                    {
+                        "path": str(directory_path.resolve()),
+                        "display_name": directory_name,
+                    },
+                )
+            )
+
+    matches.sort(key=lambda item: item[0])
+    return normalized_root, [item for _, item in matches[:limit]]
+
+
+def normalize_host_directory_path(path: str | None) -> str:
+    if path is None or not path.strip():
+        return "/"
+    return _normalize_absolute_path(path, field_name="path", require_directory=True)
 
 
 def resolve_project_for_content(
@@ -269,3 +366,16 @@ def _looks_project_specific(content: str) -> bool:
     if PROJECT_PATH_HINT_PATTERN.search(content):
         return True
     return any(cue in lowered for cue in PROJECT_SPECIFIC_CUES)
+
+
+def _path_search_score(*, file_name: str, absolute_path: str, query: str) -> tuple[int, int, int]:
+    lowered_name = file_name.lower()
+    if lowered_name.startswith(query):
+        bucket = 0
+    elif query in lowered_name:
+        bucket = 1
+    else:
+        bucket = 2
+
+    contains_index = lowered_name.find(query)
+    return (bucket, contains_index if contains_index >= 0 else 9999, len(absolute_path))

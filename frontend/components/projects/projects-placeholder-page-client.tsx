@@ -20,8 +20,7 @@ type ProjectFormState = {
 };
 
 type DirectoryItem = {
-  relativePath: string;
-  absolutePath: string;
+  path: string;
   displayName: string;
 };
 
@@ -102,22 +101,19 @@ function normalizeDirectory(raw: unknown): DirectoryItem | null {
   }
 
   const item = raw as {
-    relative_path?: unknown;
-    absolute_path?: unknown;
+    path?: unknown;
     display_name?: unknown;
   };
 
   if (
-    typeof item.relative_path !== "string" ||
-    typeof item.absolute_path !== "string" ||
+    typeof item.path !== "string" ||
     typeof item.display_name !== "string"
   ) {
     return null;
   }
 
   return {
-    relativePath: item.relative_path,
-    absolutePath: item.absolute_path,
+    path: item.path,
     displayName: item.display_name,
   };
 }
@@ -136,18 +132,19 @@ function formatUpdatedAt(value: string): string {
   }).format(date);
 }
 
-function buildParentRelativePath(relativePath: string): string {
-  const normalized = relativePath.trim();
-  if (!normalized) {
-    return "";
+function buildParentPath(currentPath: string): string {
+  const normalized = currentPath.trim();
+  if (!normalized || normalized === "/") {
+    return "/";
   }
 
-  const parts = normalized.split("/").filter(Boolean);
-  if (parts.length <= 1) {
-    return "";
+  const trimmed = normalized.replace(/\/+$/, "");
+  const separatorIndex = trimmed.lastIndexOf("/");
+  if (separatorIndex <= 0) {
+    return "/";
   }
 
-  return parts.slice(0, -1).join("/");
+  return trimmed.slice(0, separatorIndex);
 }
 
 function inferProjectNameFromPath(absolutePath: string): string {
@@ -177,7 +174,7 @@ function rootPathInput({
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="/workspace/agentmobile"
+          placeholder="/root/codexchat"
           className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
         />
       </label>
@@ -247,7 +244,7 @@ export default function ProjectsPlaceholderPageClient() {
       setDirectoryErrorMessage(null);
       try {
         const query = nextPath ? `?path=${encodeURIComponent(nextPath)}` : "";
-        const response = await fetch(`/api/projects/workspace/directories/browse${query}`, {
+        const response = await fetch(`/api/projects/host/directories/browse${query}`, {
           method: "GET",
           credentials: "include",
           cache: "no-store",
@@ -296,7 +293,7 @@ export default function ProjectsPlaceholderPageClient() {
         if (nextPath) {
           searchParams.set("path", nextPath);
         }
-        const response = await fetch(`/api/projects/workspace/directories/search?${searchParams.toString()}`, {
+        const response = await fetch(`/api/projects/host/directories/search?${searchParams.toString()}`, {
           method: "GET",
           credentials: "include",
           cache: "no-store",
@@ -333,7 +330,7 @@ export default function ProjectsPlaceholderPageClient() {
     setDirectorySearchQuery("");
     setDirectorySearchResults([]);
     setDirectoryErrorMessage(null);
-    void loadDirectoryBrowser("");
+    void loadDirectoryBrowser("/");
   };
 
   const applyDirectorySelection = (absolutePath: string) => {
@@ -500,7 +497,7 @@ export default function ProjectsPlaceholderPageClient() {
               Project selection now drives chat context.
             </h1>
             <p className="mt-3 max-w-3xl text-sm text-muted-foreground sm:text-base">
-              Add the workspace roots the assistant should recognize. When a shared conversation becomes project-specific, chat can bind to one of these projects and inject the matching root path into the turn context.
+              Add the VPS directories the assistant should recognize. When a shared conversation becomes project-specific, chat can bind to one of these projects and inject the matching root path into the turn context.
             </p>
           </div>
           <button
@@ -546,7 +543,7 @@ export default function ProjectsPlaceholderPageClient() {
             </div>
           ) : projects.length === 0 ? (
             <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-              No projects yet. Add at least one workspace root so chat can clarify ambiguous project-specific turns.
+              No projects yet. Add at least one project root so chat can clarify ambiguous project-specific turns.
             </div>
           ) : (
             <div className="mt-5 grid gap-4">
@@ -652,7 +649,7 @@ export default function ProjectsPlaceholderPageClient() {
               <div>
                 <h2 className="text-xl font-semibold tracking-tight">Add project</h2>
                 <p className="text-sm text-muted-foreground">
-                  Pick a directory from the workspace browser or paste an absolute path manually.
+                  Pick any reachable VPS directory from the browser or paste an absolute path manually.
                 </p>
               </div>
             </div>
@@ -678,7 +675,7 @@ export default function ProjectsPlaceholderPageClient() {
                 <input
                   value={createForm.indexMdPath}
                   onChange={(event) => setCreateForm((previous) => ({ ...previous, indexMdPath: event.target.value }))}
-                  placeholder="/workspace/agentmobile/INDEX.md"
+                  placeholder="/root/codexchat/INDEX.md"
                   className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
                 />
               </label>
@@ -701,7 +698,7 @@ export default function ProjectsPlaceholderPageClient() {
               <div>
                 <h2 className="text-xl font-semibold tracking-tight">Directory finder</h2>
                 <p className="text-sm text-muted-foreground">
-                  Search or browse directories inside the configured workspace and apply one to a project root path.
+                  Search or browse directories across the VPS filesystem and apply one to a project root path.
                 </p>
               </div>
             </div>
@@ -726,7 +723,7 @@ export default function ProjectsPlaceholderPageClient() {
                   <input
                     value={directorySearchQuery}
                     onChange={(event) => setDirectorySearchQuery(event.target.value)}
-                    placeholder="Search current workspace area"
+                    placeholder="Search current directory tree"
                     className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
                   />
                   <button
@@ -745,7 +742,7 @@ export default function ProjectsPlaceholderPageClient() {
                 <button
                   type="button"
                   className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => void loadDirectoryBrowser(buildParentRelativePath(directoryPath))}
+                  onClick={() => void loadDirectoryBrowser(buildParentPath(directoryPath))}
                   disabled={isDirectoryLoading || !directoryPath}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -782,7 +779,7 @@ export default function ProjectsPlaceholderPageClient() {
             <div className="mt-4 rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm">
               <p className="font-medium text-foreground">Current folder</p>
               <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                {directoryAbsolutePath || "Open the browser to load the workspace root."}
+                {directoryAbsolutePath || "Open the browser to load the VPS root directory."}
               </p>
             </div>
 
@@ -801,20 +798,20 @@ export default function ProjectsPlaceholderPageClient() {
               ) : visibleDirectoryResults.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
                   {directorySearchQuery.trim()
-                    ? "No matching directories in the current workspace area."
+                    ? "No matching directories in the current area."
                     : "No subdirectories found here yet. You can still use the current folder."}
                 </div>
               ) : (
                 <div className="grid gap-2">
                   {visibleDirectoryResults.map((item) => (
                     <button
-                      key={item.relativePath || item.absolutePath}
+                      key={item.path}
                       type="button"
                       className="rounded-2xl border border-border bg-background px-4 py-3 text-left transition hover:bg-muted"
                       onClick={() =>
                         directorySearchQuery.trim()
-                          ? applyDirectorySelection(item.absolutePath)
-                          : void loadDirectoryBrowser(item.relativePath)
+                          ? applyDirectorySelection(item.path)
+                          : void loadDirectoryBrowser(item.path)
                       }
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -824,7 +821,7 @@ export default function ProjectsPlaceholderPageClient() {
                         </span>
                       </div>
                       <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                        {item.absolutePath}
+                        {item.path}
                       </p>
                     </button>
                   ))}

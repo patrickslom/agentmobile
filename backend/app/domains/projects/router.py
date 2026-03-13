@@ -9,15 +9,13 @@ from app.db.models import Project, User
 from app.db.session import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.domains.projects.service import (
+    browse_host_directories,
     get_project,
     list_projects,
     load_project_index_excerpt,
+    normalize_host_directory_path,
+    search_host_directories,
     validate_project_paths,
-)
-from app.domains.files.workspace_service import (
-    browse_workspace_directories,
-    resolve_workspace_path,
-    search_workspace_directories,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -39,8 +37,7 @@ class ProjectIndexResponse(BaseModel):
 
 
 class ProjectWorkspaceDirectoryResponse(BaseModel):
-    relative_path: str
-    absolute_path: str
+    path: str
     display_name: str
 
 
@@ -87,32 +84,31 @@ def get_projects(
     }
 
 
-@router.get("/workspace/directories/browse")
-def browse_project_workspace_directories(
+@router.get("/host/directories/browse")
+def browse_project_host_directories(
     path: str | None = Query(default=None),
     _: User = Depends(get_current_user),
 ) -> dict[str, object]:
-    normalized_path, items = browse_workspace_directories(path)
-    _, absolute_path = resolve_workspace_path(normalized_path, expected_kind="directory")
+    normalized_path, items = browse_host_directories(path)
     return {
         "path": normalized_path,
-        "absolute_path": str(absolute_path),
+        "absolute_path": normalized_path,
         "items": [ProjectWorkspaceDirectoryResponse.model_validate(item) for item in items],
     }
 
 
-@router.get("/workspace/directories/search")
-def search_project_workspace_directories(
+@router.get("/host/directories/search")
+def search_project_host_directories(
     q: str = Query(min_length=1, max_length=255),
     path: str | None = Query(default=None),
     limit: int = Query(default=30, ge=1, le=100),
     _: User = Depends(get_current_user),
 ) -> dict[str, object]:
-    normalized_path, items = search_workspace_directories(query=q, relative_path=path, limit=limit)
-    _, absolute_path = resolve_workspace_path(normalized_path, expected_kind="directory")
+    normalized_path = normalize_host_directory_path(path)
+    _, items = search_host_directories(query=q, path=normalized_path, limit=limit)
     return {
         "path": normalized_path,
-        "absolute_path": str(absolute_path),
+        "absolute_path": normalized_path,
         "items": [ProjectWorkspaceDirectoryResponse.model_validate(item) for item in items],
     }
 
