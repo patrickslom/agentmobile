@@ -27,8 +27,10 @@ Minimum safety expectations:
 
 ### Must-have (MVP)
 - Chat UI that looks/feels like ChatGPT:
-  - Left sidebar: conversation list + “New chat”
-  - Main pane: messages, streaming responses, code blocks, copy buttons
+  - Shared left sidebar: top-level module navigation
+  - Main pane: module landing pages and deeper views
+  - Chat module landing page includes search, recent history, and “New chat”
+  - Conversation detail view shows messages, streaming responses, code blocks, copy buttons
   - Input box with multiline + send
   - Composer controls use recognizable icons (message, attachment, send)
   - Fully responsive on desktop + mobile (ChatGPT-like behavior on both)
@@ -40,6 +42,8 @@ Minimum safety expectations:
   - See past conversations
   - Resume an existing conversation (continue context)
   - Bookmark assistant messages per user and reopen them from a dedicated bookmarks view with `Mine` and `All` filters
+  - Heartbeats live in a dedicated top-level module
+  - Admin user management lives in a dedicated admin-only module
   - Shared visibility model: all users on the VPS can view shared conversation history/files
   - Shared conversations preserve message authorship: user messages show `YOU` for the sender, peer names/avatars for others, and assistant messages remain full-width cards
   - Concurrency safety: only one active Codex run per conversation/thread at a time
@@ -293,11 +297,14 @@ Later:
 
 ### Layout
 - Left sidebar:
-  - “New chat” button
-  - Conversation list (title + short summary + updated time)
+  - Shared module navigation for Chat, Bookmarks, Projects, Heartbeats, Settings, and Admin (admin only)
+  - Brand pinned to the top
+  - Logout pinned to the bottom
+  - Desktop: open by default, collapsible to icons-only
   - Mobile: full-screen sidebar drawer, opened by hamburger menu
-  - Logout
 - Main:
+  - `/chat` landing page with search, recent conversation history, and “New chat”
+  - Conversation detail view when a chat is selected
   - Message list with roles and formatting
   - Immediate pending assistant `...` placeholder after send acceptance
   - Streaming assistant output
@@ -513,7 +520,7 @@ Pick one:
 Recommended default:
 - First user is created via SSH/VPS shell and is admin.
 - Public self-registration remains disabled by default.
-- Admin creates additional users from the web interface (Settings -> Admin).
+- Admin creates additional users from the dedicated `Admin` module.
 
 ---
 

@@ -141,7 +141,7 @@ Defaults and limits:
 User management defaults:
 - First user is admin (created from VPS shell/SSH bootstrap).
 - Public self-signup is disabled by default.
-- Admin creates additional users from the web interface (`Settings -> Admin`).
+- Admin creates additional users from the web interface (`/admin` module).
 - New users should be forced to reset password on first login.
 - Admin temporary reset endpoint: `POST /api/admin/users/:id/temporary-password` (generates a one-time temporary password, forces reset on next login, and revokes active sessions).
 - SSH fallback for manual provisioning: `docker compose exec backend python scripts/create_user.py --email user@example.com --password 'change-me' --role user`
@@ -175,7 +175,7 @@ One-liner bootstrap installer:
 6. If Traefik is missing and mode is `traefik`, setup offers managed Traefik install.
 7. Setup generates/updates `.env`, validates network/config, and starts containers.
 8. Open the printed URL on desktop or mobile and log in.
-9. Admin creates additional users from `Settings -> Admin` and shares temporary credentials.
+9. Admin creates additional users from the `Admin` module and shares temporary credentials.
 
 ## Frontend Rebuild Modes
 
@@ -208,7 +208,7 @@ Use a full production rebuild when you change frontend dependencies or want the 
    - your messages: `YOU`, right-aligned
    - other users' messages: sender name (or profile picture initials), left-aligned
    - assistant messages remain full-width and unlabeled by user identity
-8. Reopen old conversations from sidebar/drawer.
+8. Use the `Chat` module landing page to search history, review recent conversations, and reopen old threads.
 9. Bookmark helpful assistant messages and revisit them from the dedicated Bookmarks view, filtered to either your own saves or all user saves.
 10. Upload files into chat and download generated/shared files.
 11. If someone else is actively running the same conversation, app blocks/queues your send until it is free.
@@ -226,8 +226,10 @@ Host runtime mode:
 
 ## Mobile UX expectations
 
-- ChatGPT-like layout on desktop and mobile.
-- Full-screen sidebar drawer on mobile (hamburger menu).
+- Shared module shell across `Chat`, `Bookmarks`, `Projects`, `Heartbeats`, `Settings`, and `Admin` (admin only).
+- Desktop: collapsible left sidebar with icons-only collapsed mode and icon + label expanded mode.
+- Mobile: hamburger button opens a full-screen navigation drawer with the same module links and pinned logout action.
+- `/chat` is a dedicated landing page with search, recent history, and `New chat`.
 - Conversation history rows show generated title, short summary, and updated time.
 - Composer fixed at bottom with Lucide message/attachment/send icons.
 - Composer includes safe-area + keyboard-aware bottom offset handling on iOS and Android so the active input remains visible while typing.

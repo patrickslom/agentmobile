@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bookmark,
   LogOut,
-  Menu,
   Octagon,
   Paperclip,
   Search,
@@ -16,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import WinkingLogo from "@/app/components/winking-logo";
+import { useProtectedShell } from "@/components/app/protected-shell-context";
 import ToastStack, { type ToastItem } from "@/components/ui/toast-stack";
 import { useChatWebSocket } from "@/hooks/use-chat-websocket";
 import { getApiBaseUrl, getWebSocketUrl } from "@/lib/network-config";
@@ -716,6 +716,7 @@ function insertWorkspaceRefMentions(
 export default function ChatWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { sidebarCollapsed } = useProtectedShell();
 
   const selectedFromQuery = searchParams.get("conversationId");
   const selectedBookmarkMessageId = searchParams.get("messageId");
@@ -791,7 +792,6 @@ export default function ChatWorkspace() {
   const normalizedSearchQuery = debouncedConversationSearchQuery.trim();
   const isSearchActive = normalizedSearchQuery.length > 0;
   const visibleConversations = isSearchActive ? searchResults : conversations;
-  const shouldShowIntroQuote = !selectedConversationId;
 
   const selectedTimelineMessages = useMemo(() => {
     if (!selectedConversationId) {
@@ -830,6 +830,11 @@ export default function ChatWorkspace() {
       },
     ];
   }, [messagesByConversationId, selectedConversationId, streamDraftByConversationId]);
+
+  const shouldShowIntroQuote =
+    Boolean(selectedConversationId) &&
+    !timelineLoading &&
+    selectedTimelineMessages.length === 0;
 
   const selectedConversationBusy = selectedConversationId
     ? Boolean(busyByConversationId[selectedConversationId])
@@ -2495,96 +2500,9 @@ export default function ChatWorkspace() {
   }, [isSidebarCollapsed]);
 
   return (
-    <div
-      className={`min-h-screen min-h-dvh bg-background text-foreground md:grid ${
-        isSidebarCollapsed ? "md:grid-cols-[78px_1fr]" : "md:grid-cols-[320px_1fr]"
-      }`}
-    >
+    <div className="relative min-h-[calc(100vh-140px)] min-h-[calc(100dvh-140px)]">
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      <aside className="hidden border-r border-border bg-muted/40 md:sticky md:top-0 md:flex md:h-screen md:flex-col">
-        {isSidebarCollapsed ? (
-          <CollapsedSidebarContent
-            onExpand={() => setSidebarCollapsed(false)}
-            onSearchAction={onSearchAction}
-            onNewChat={onNewChat}
-          />
-        ) : (
-          <SidebarContent
-            conversations={visibleConversations}
-            searchQuery={conversationSearchQuery}
-            isSearchActive={isSearchActive}
-            isSearchLoading={isSearchLoading}
-            searchErrorMessage={searchErrorMessage}
-            selectedConversationId={selectedConversationId}
-            busyByConversationId={busyByConversationId}
-            isLoading={isLoading}
-            isRefreshing={isRefreshing}
-            errorMessage={errorMessage}
-            listRef={listRef}
-            searchInputRef={searchInputRef}
-            onConversationListScroll={onConversationListScroll}
-            onSelectConversation={onSelectConversation}
-            onNewChat={onNewChat}
-            onSearchChange={setConversationSearchQuery}
-            onRetrySearch={() => void searchConversations(debouncedConversationSearchQuery)}
-            onRetry={() => void loadConversations("refresh")}
-          />
-        )}
-      </aside>
-
-      <div className="min-w-0">
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur md:hidden">
-          <button
-            type="button"
-            aria-label="Open conversation sidebar"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-lg"
-            onClick={() => setDrawerOpen(true)}
-          >
-            <Menu className="h-4 w-4" />
-          </button>
-          <Link href="/chat" className="inline-flex items-center gap-2">
-            <WinkingLogo size={24} />
-            <span className="text-sm font-semibold tracking-[0.14em] uppercase">AGENTMOBILE</span>
-          </Link>
-          <span className="h-9 w-9" aria-hidden />
-        </header>
-
-        {isDrawerOpen ? (
-          <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true">
-            <button
-              type="button"
-              aria-label="Close conversation sidebar"
-              className="absolute inset-0 bg-black/50"
-              onClick={() => setDrawerOpen(false)}
-            />
-            <aside className="relative z-10 h-full w-screen border-r border-border bg-background">
-              <SidebarContent
-                conversations={visibleConversations}
-                searchQuery={conversationSearchQuery}
-                isSearchActive={isSearchActive}
-                isSearchLoading={isSearchLoading}
-                searchErrorMessage={searchErrorMessage}
-                selectedConversationId={selectedConversationId}
-                busyByConversationId={busyByConversationId}
-                isLoading={isLoading}
-                isRefreshing={isRefreshing}
-                errorMessage={errorMessage}
-                listRef={listRef}
-                searchInputRef={searchInputRef}
-                onConversationListScroll={onConversationListScroll}
-                onSelectConversation={onSelectConversation}
-                onNewChat={onNewChat}
-                onSearchChange={setConversationSearchQuery}
-                onRetrySearch={() => void searchConversations(debouncedConversationSearchQuery)}
-                onRetry={() => void loadConversations("refresh")}
-                mobile
-                onClose={() => setDrawerOpen(false)}
-              />
-            </aside>
-          </div>
-        ) : null}
-
-        <main className="mx-auto flex min-h-[calc(100vh-56px)] min-h-[calc(100dvh-56px)] w-full max-w-5xl flex-col px-4 py-6 pb-72 sm:px-6 md:min-h-screen md:min-h-dvh md:py-8 md:pb-72">
+      <main className="mx-auto flex min-h-[calc(100vh-140px)] min-h-[calc(100dvh-140px)] w-full max-w-5xl flex-col pb-72">
           <div className="mb-3 flex justify-end">
             <ConnectionBadge
               state={connectionState}
@@ -2622,32 +2540,32 @@ export default function ChatWorkspace() {
               onRetry={() => selectedConversationId ? void loadConversationMessages(selectedConversationId) : undefined}
             />
           )}
-        </main>
-        <ComposerPanel
-          value={composerValue}
-          setValue={onComposerChange}
-          onSubmit={onComposerSubmit}
-          onMentionTrigger={onComposerMentionTrigger}
-          onOpenWorkspacePicker={onOpenWorkspacePickerFromButton}
-          disabled={!canSubmitComposer}
-          interactionLocked={selectedConversationBusy || isCreatingConversation || isUploadingAttachments}
-          isCreatingConversation={isCreatingConversation}
-          isUploadingAttachments={isUploadingAttachments}
-          connectionState={connectionState}
-          hasConfigError={Boolean(wsResolution.error)}
-          sendError={selectedSendError}
-          selectedAttachments={attachmentDrafts}
-          selectedWorkspaceRefs={workspaceRefDrafts}
-          attachmentError={attachmentError}
-          workspaceRefError={workspaceRefError}
-          onPickAttachments={onPickAttachments}
-          onRemoveAttachment={onRemoveAttachment}
-          onRemoveWorkspaceRef={onRemoveWorkspaceRef}
-          bottomOffset={composerBottomOffset}
-          sidebarCollapsed={isSidebarCollapsed}
-          composerRef={composerRef}
-        />
-        <WorkspaceFilePicker
+      </main>
+      <ComposerPanel
+        value={composerValue}
+        setValue={onComposerChange}
+        onSubmit={onComposerSubmit}
+        onMentionTrigger={onComposerMentionTrigger}
+        onOpenWorkspacePicker={onOpenWorkspacePickerFromButton}
+        disabled={!canSubmitComposer}
+        interactionLocked={selectedConversationBusy || isCreatingConversation || isUploadingAttachments}
+        isCreatingConversation={isCreatingConversation}
+        isUploadingAttachments={isUploadingAttachments}
+        connectionState={connectionState}
+        hasConfigError={Boolean(wsResolution.error)}
+        sendError={selectedSendError}
+        selectedAttachments={attachmentDrafts}
+        selectedWorkspaceRefs={workspaceRefDrafts}
+        attachmentError={attachmentError}
+        workspaceRefError={workspaceRefError}
+        onPickAttachments={onPickAttachments}
+        onRemoveAttachment={onRemoveAttachment}
+        onRemoveWorkspaceRef={onRemoveWorkspaceRef}
+        bottomOffset={composerBottomOffset}
+        sidebarCollapsed={sidebarCollapsed}
+        composerRef={composerRef}
+      />
+      <WorkspaceFilePicker
           open={isWorkspacePickerOpen}
           mode={workspacePickerMode}
           currentDirectory={workspacePickerDirectoryPath}
@@ -2673,8 +2591,7 @@ export default function ChatWorkspace() {
           onChangeQuery={setWorkspacePickerQuery}
           onToggleSelection={onToggleWorkspacePickerSelection}
           onAttach={attachSelectedWorkspaceRefs}
-        />
-      </div>
+      />
     </div>
   );
 }

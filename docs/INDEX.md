@@ -51,6 +51,9 @@
 - [FILEREF.md](/root/agentmobile/docs/FILEREF.md)
   Planning document for `@` workspace file references in the composer, send payload, and agent runtime.
 
+- [FUTURETODO.md](/root/agentmobile/docs/FUTURETODO.md)
+  Nice-to-have follow-up work that is intentionally deferred until later implementation passes.
+
 - [HEARTBEATPLAN.md](/root/agentmobile/docs/HEARTBEATPLAN.md)
   Guided heartbeat wizard plan covering scheduling, markdown-backed instructions, safety controls, and testing.
 

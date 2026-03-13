@@ -1,5 +1,5 @@
-import HeartbeatJobsPageClient from "@/components/settings/heartbeat-jobs-page-client";
+import { redirect } from "next/navigation";
 
 export default function HeartbeatJobsPage() {
-  return <HeartbeatJobsPageClient />;
+  redirect("/heartbeats");
 }

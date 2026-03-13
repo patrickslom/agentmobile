@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Bookmark, ExternalLink, Trash2 } from "lucide-react";
+import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
 import ToastStack, { type ToastItem, type ToastTone } from "@/components/ui/toast-stack";
 import { getApiBaseUrl } from "@/lib/network-config";
 
@@ -198,24 +198,11 @@ export default function BookmarksPageClient() {
       <div className="mx-auto max-w-5xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <Link
-              href="/chat"
-              className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to chat
-            </Link>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight">Bookmarks</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Bookmarks</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
               Browse your own saved assistant responses or the full team bookmark stream.
             </p>
           </div>
-          <Link
-            href="/settings"
-            className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium transition hover:bg-muted"
-          >
-            Settings
-          </Link>
         </div>
 
         <div className="mt-6 inline-flex rounded-xl border border-border bg-background p-1">

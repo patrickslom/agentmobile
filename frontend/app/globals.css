@@ -59,6 +59,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), sans-serif;
   line-height: 1.5;
+  overflow-x: hidden;
 }
 
 input,

@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiBaseUrl } from "@/lib/network-config";
@@ -335,29 +333,11 @@ export default function SettingsPageClient({ isAdmin }: SettingsPageClientProps)
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
       <section className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
         <header className="rounded-xl border border-border bg-muted p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Configure appearance, execution defaults, upload limits, and safety warnings.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/settings/heartbeats"
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-foreground"
-              >
-                Open heartbeat jobs
-              </Link>
-              {isAdmin ? (
-                <Link
-                  href="/settings/admin"
-                  className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-foreground"
-                >
-                  Open admin settings
-                </Link>
-              ) : null}
-            </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Configure appearance, execution defaults, upload limits, and safety warnings.
+            </p>
           </div>
         </header>
 

@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { getApiBaseUrl } from "@/lib/network-config";
@@ -366,19 +364,11 @@ export default function AdminSettingsPageClient() {
 
       <section className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
         <header className="rounded-xl border border-border bg-muted p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Admin Settings</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Manage user access, account status, and onboarding credentials.
-              </p>
-            </div>
-            <Link
-              href="/settings"
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-foreground"
-            >
-              Back to settings
-            </Link>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Manage user access, account status, and onboarding credentials.
+            </p>
           </div>
         </header>
 

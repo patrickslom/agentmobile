@@ -30,13 +30,15 @@ Shell behavior:
 
 Desktop:
 - The sidebar stays visible on the left.
+- The sidebar is open by default.
+- Users can collapse it to an icons-only rail.
 - The main content stays visible on the right.
 
 Mobile:
-- The sidebar is still part of the page.
-- No drawer behavior is used.
-- The sidebar appears full width.
-- The main content appears below the sidebar.
+- A hamburger button opens the sidebar as a full-screen drawer.
+- The mobile drawer should match the desktop open state (icons + labels).
+- The drawer should keep the logo pinned at the top and logout pinned at the bottom.
+- Main content stays focused on the active module page.
 
 The goal is functional consistency across desktop and mobile, even if the layout stacks differently on small screens.
 
@@ -50,12 +52,15 @@ Sidebar items:
 - `Projects`
 - `Heartbeats`
 - `Settings`
+- `Admin` (admin users only)
 
 Behavior:
 - Each item is a straightforward navigation link or button to its route.
 - The active route should be visually highlighted.
 - The sidebar should not be responsible for rendering full module content inline.
 - Users should be able to move between all main product areas without losing the shared shell.
+- Logout should remain pinned at the bottom of the sidebar while the module links remain scrollable if needed.
+- Brand/logo should remain pinned at the top of the sidebar.
 
 ## Module landing pages
 
@@ -67,7 +72,7 @@ Each module should have its own landing page in the main content area.
 - Deeper chat views can continue from there.
 
 `/bookmarks`
-- Placeholder landing page for saved prompts, references, and future pinned items.
+- Landing page for saved assistant responses and future pinned items.
 
 `/projects`
 - Placeholder landing page for future project workspaces.
@@ -78,7 +83,10 @@ Each module should have its own landing page in the main content area.
 `/settings`
 - Shows the settings UI in the main content area.
 - Keeps the same sidebar visible.
-- Replaces the current detached settings experience.
+- Focuses on preferences and defaults only.
+
+`/admin`
+- Admin-only landing page for user management and related controls.
 
 ## Routing
 
@@ -88,6 +96,7 @@ Primary routes:
 - `/projects`
 - `/heartbeats`
 - `/settings`
+- `/admin` (admin users only)
 
 Routing notes:
 - The address bar should always reflect the active module.
@@ -97,13 +106,13 @@ Routing notes:
 ## Current scope
 
 For now:
-- `Bookmarks` and `Projects` can remain scaffolded placeholders.
+- `Projects` can remain a scaffolded placeholder.
 - `Heartbeats` should be included as a first-class module in the shared shell.
-- The sidebar should be unified across chat, settings, and heartbeats so the app feels like one product surface.
+- `Admin` should move out of settings into its own route/module.
+- The sidebar should be unified across chat, bookmarks, projects, heartbeats, settings, and admin so the app feels like one product surface.
 
 ## Obsolete ideas
 
 These earlier directions should be treated as obsolete:
 - desktop-only collapsed module rail
-- mobile drawer sidebar
 - rendering module content directly inside collapsible sidebar sections

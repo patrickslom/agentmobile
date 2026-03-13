@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { hasSessionCookie } from "@/lib/auth-session";
+import ProtectedShell from "@/components/app/protected-shell";
+import { getAuthenticatedUser, hasSessionCookie } from "@/lib/auth-session";
 
 export default async function ProtectedLayout({
   children,
@@ -10,5 +11,7 @@ export default async function ProtectedLayout({
     redirect("/login");
   }
 
-  return children;
+  const user = await getAuthenticatedUser();
+
+  return <ProtectedShell isAdmin={user?.role === "admin"}>{children}</ProtectedShell>;
 }

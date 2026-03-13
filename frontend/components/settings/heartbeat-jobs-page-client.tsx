@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { getApiBaseUrl } from "@/lib/network-config";
@@ -207,6 +205,15 @@ function findLatestRun(job: HeartbeatJob): HeartbeatRun | null {
   }
 
   return job.runs[0] ?? null;
+}
+
+function truncateLabel(value: string, maxLength: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
 export default function HeartbeatJobsPageClient() {
@@ -480,22 +487,16 @@ export default function HeartbeatJobsPageClient() {
     <>
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      <section className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
-        <header className="rounded-xl border border-border bg-muted p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Heartbeat Jobs</h1>
+      <section className="mx-auto w-full max-w-6xl min-w-0 space-y-6 overflow-x-hidden px-4 py-6 sm:px-6 sm:py-8">
+        <header className="min-w-0 overflow-hidden rounded-xl border border-border bg-muted p-5 sm:p-6">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-tight">Heartbeats</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Schedule markdown instruction files to run in selected conversations.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/settings"
-                className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-foreground"
-              >
-                Back to settings
-              </Link>
               <button
                 type="button"
                 onClick={() => void loadJobs()}
@@ -507,7 +508,7 @@ export default function HeartbeatJobsPageClient() {
           </div>
         </header>
 
-        <section className="rounded-xl border border-border bg-background p-5 sm:p-6">
+        <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-background p-5 sm:p-6">
           <h2 className="text-lg font-semibold tracking-tight">Create job</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Choose a conversation, set markdown path, interval preset, and enabled state.
@@ -522,7 +523,7 @@ export default function HeartbeatJobsPageClient() {
                   value={createConversationSearch}
                   onChange={(event) => setCreateConversationSearch(event.target.value)}
                   placeholder="Search by title or conversation ID"
-                  className="rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground"
+                  className="w-full min-w-0 rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground"
                 />
               </label>
 
@@ -532,14 +533,18 @@ export default function HeartbeatJobsPageClient() {
                   value={selectedConversationId}
                   onChange={(event) => setSelectedConversationId(event.target.value)}
                   disabled={isLoadingConversations || filteredConversations.length === 0}
-                  className="rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full min-w-0 rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {filteredConversations.length === 0 ? (
                     <option value="">No conversations found</option>
                   ) : null}
                   {filteredConversations.map((conversation) => (
-                    <option key={conversation.id} value={conversation.id}>
-                      {conversation.title}
+                    <option
+                      key={conversation.id}
+                      value={conversation.id}
+                      title={conversation.title}
+                    >
+                      {truncateLabel(conversation.title, 28)}
                     </option>
                   ))}
                 </select>
@@ -554,7 +559,7 @@ export default function HeartbeatJobsPageClient() {
                 onChange={(event) => setInstructionFilePath(event.target.value)}
                 required
                 placeholder="/abs/path/to/instructions.md"
-                className="rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground"
+                className="w-full min-w-0 rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground"
               />
             </label>
 
@@ -605,7 +610,7 @@ export default function HeartbeatJobsPageClient() {
           </form>
         </section>
 
-        <section className="rounded-xl border border-border bg-background p-5 sm:p-6">
+        <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-background p-5 sm:p-6">
           <h2 className="text-lg font-semibold tracking-tight">Jobs</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Compact list with latest run status/time and quick edit/delete actions.
@@ -619,7 +624,104 @@ export default function HeartbeatJobsPageClient() {
           ) : null}
 
           {!isLoadingJobs && !pageError ? (
-            <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+            <>
+              <div className="mt-4 grid gap-3 md:hidden">
+                {jobs.map((job) => {
+                  const latestRun = findLatestRun(job);
+                  const isDeleting = isDeletingId === job.id;
+                  const conversationTitle = conversations.find((row) => row.id === job.conversation_id)?.title;
+                  return (
+                    <article key={job.id} className="rounded-xl border border-border bg-muted/35 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="break-words font-medium text-foreground">
+                            {jobNameFromPath(job.instruction_file_path, job.id)}
+                          </p>
+                          <p className="mt-1 break-all text-xs text-muted-foreground">
+                            {job.instruction_file_path}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${
+                            job.enabled
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
+                              : "border-zinc-400 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                          }`}
+                        >
+                          {job.enabled ? "enabled" : "disabled"}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-xs text-muted-foreground">
+                        <p className="break-words">
+                          Conversation: {conversationTitle ? conversationTitle : job.conversation_id}
+                        </p>
+                        <p>Every {job.interval_minutes} min</p>
+                        <p>Next: {formatDateTime(job.next_run_at)}</p>
+                        <p>Last run: {latestRun ? formatDateTime(latestRun.finished_at ?? latestRun.started_at ?? latestRun.created_at) : "No runs yet"}</p>
+                        {latestRun ? (
+                          <p className="break-words">
+                            Latest status: <span className="font-medium text-foreground">{latestRun.status}</span>
+                          </p>
+                        ) : null}
+                        {latestRun?.error_text ? (
+                          <p className="break-words text-red-700 dark:text-red-300">{latestRun.error_text}</p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditState({
+                              id: job.id,
+                              instructionFilePath: job.instruction_file_path,
+                              intervalMinutes: job.interval_minutes,
+                              enabled: job.enabled,
+                            })
+                          }
+                          className="rounded-md border border-border px-2 py-1 text-xs font-medium transition hover:border-foreground"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRunsModal({
+                              jobId: job.id,
+                              jobName: jobNameFromPath(job.instruction_file_path, job.id),
+                              runs: job.runs,
+                            })
+                          }
+                          className="rounded-md border border-border px-2 py-1 text-xs font-medium transition hover:border-foreground"
+                        >
+                          View runs
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeleteJobModal({
+                              job,
+                              jobName: jobNameFromPath(job.instruction_file_path, job.id),
+                            })
+                          }
+                          disabled={isDeleting}
+                          className="rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:text-red-300"
+                        >
+                          {isDeleting ? "Deleting…" : "Delete"}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+                {jobs.length === 0 ? (
+                  <div className="rounded-xl border border-border bg-muted/35 px-4 py-5 text-sm text-muted-foreground">
+                    No heartbeat jobs yet.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto rounded-lg border border-border md:block">
               <table className="min-w-full divide-y divide-border text-left text-sm">
                 <thead className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
@@ -730,14 +832,15 @@ export default function HeartbeatJobsPageClient() {
                   ) : null}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           ) : null}
         </section>
       </section>
 
       {editState ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-xl border border-border bg-background p-5 shadow-lg">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-background p-5 shadow-lg">
             <h2 className="text-lg font-semibold tracking-tight">Edit heartbeat job</h2>
             <p className="mt-1 text-sm text-muted-foreground">Update markdown path, interval preset, and enabled state.</p>
 
@@ -756,7 +859,7 @@ export default function HeartbeatJobsPageClient() {
                       : previous,
                   )
                 }
-                className="rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground"
+                className="w-full min-w-0 rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none transition focus:border-foreground"
               />
             </label>
 
@@ -811,7 +914,7 @@ export default function HeartbeatJobsPageClient() {
               Enabled
             </label>
 
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 className="rounded-lg border border-border px-3 py-2 text-sm"
@@ -834,7 +937,7 @@ export default function HeartbeatJobsPageClient() {
 
       {runsModal ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-background p-5 shadow-lg">
+          <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-background p-5 shadow-lg">
             <h2 className="text-lg font-semibold tracking-tight">Run history: {runsModal.jobName}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Showing the latest runs returned by the API (status, timestamps, and errors).
@@ -885,12 +988,12 @@ export default function HeartbeatJobsPageClient() {
 
       {deleteJobModal ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-xl border border-border bg-background p-5 shadow-lg">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-background p-5 shadow-lg">
             <h2 className="text-lg font-semibold tracking-tight">Delete heartbeat job?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               This will archive <span className="font-medium text-foreground">{deleteJobModal.jobName}</span> and stop future runs.
             </p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 className="rounded-lg border border-border px-3 py-2 text-sm"
