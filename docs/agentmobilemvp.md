@@ -222,6 +222,7 @@ Later:
   - root path
   - optional `INDEX.md` path
   - active/inactive status
+- Projects management includes workspace-scoped directory browse/search so users can assign a project root without manually typing every absolute path.
 - Project selection happens in backend preflight before Codex turn execution.
 - When ambiguous, chat emits a structured clarification event with numbered options and an inline create-project path.
 - When a project is bound, backend prepends project context to the turn prompt before forwarding the request to Codex.
@@ -274,6 +275,8 @@ Later:
 - `GET /conversations/:id`
 - `POST /conversations/:id/title` (optional)
 - `GET /projects`
+- `GET /projects/workspace/directories/browse`
+- `GET /projects/workspace/directories/search`
 - `POST /projects`
 - `PATCH /projects/:id`
 - `GET /projects/:id/index`
@@ -320,7 +323,7 @@ Later:
   - Mobile: full-screen sidebar drawer, opened by hamburger menu
 - Main:
   - `/chat` landing page with search, recent conversation history, and “New chat”
-  - `/projects` management page with responsive create/edit/toggle-active controls
+  - `/projects` management page with responsive create/edit/toggle-active controls and a workspace directory finder for project root selection
   - Conversation detail view when a chat is selected
   - Message list with roles and formatting
   - Immediate pending assistant `...` placeholder after send acceptance

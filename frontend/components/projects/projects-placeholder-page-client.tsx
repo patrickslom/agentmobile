@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FolderKanban, Plus, RefreshCcw, Save } from "lucide-react";
+import { ChevronLeft, FolderKanban, FolderSearch, Plus, RefreshCcw, Save, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type ProjectItem = {
@@ -18,6 +18,17 @@ type ProjectFormState = {
   rootPath: string;
   indexMdPath: string;
 };
+
+type DirectoryItem = {
+  relativePath: string;
+  absolutePath: string;
+  displayName: string;
+};
+
+type DirectoryPickerTarget =
+  | { kind: "create" }
+  | { kind: "edit"; projectId: string }
+  | null;
 
 const EMPTY_FORM: ProjectFormState = {
   name: "",
@@ -85,6 +96,32 @@ function normalizeProject(raw: unknown): ProjectItem | null {
   };
 }
 
+function normalizeDirectory(raw: unknown): DirectoryItem | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const item = raw as {
+    relative_path?: unknown;
+    absolute_path?: unknown;
+    display_name?: unknown;
+  };
+
+  if (
+    typeof item.relative_path !== "string" ||
+    typeof item.absolute_path !== "string" ||
+    typeof item.display_name !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    relativePath: item.relative_path,
+    absolutePath: item.absolute_path,
+    displayName: item.display_name,
+  };
+}
+
 function formatUpdatedAt(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -99,6 +136,64 @@ function formatUpdatedAt(value: string): string {
   }).format(date);
 }
 
+function buildParentRelativePath(relativePath: string): string {
+  const normalized = relativePath.trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 1) {
+    return "";
+  }
+
+  return parts.slice(0, -1).join("/");
+}
+
+function inferProjectNameFromPath(absolutePath: string): string {
+  const trimmed = absolutePath.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return "";
+  }
+  const parts = trimmed.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+}
+
+function rootPathInput({
+  value,
+  onChange,
+  onBrowse,
+  disabled,
+}: {
+  value: string;
+  onChange: (nextValue: string) => void;
+  onBrowse: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      <label className="text-sm">
+        <span className="mb-1.5 block font-medium text-foreground">Root path</span>
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="/workspace/agentmobile"
+          className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
+        />
+      </label>
+      <button
+        type="button"
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-medium transition hover:bg-muted"
+        onClick={onBrowse}
+        disabled={disabled}
+      >
+        <FolderSearch className="h-4 w-4" />
+        Browse
+      </button>
+    </div>
+  );
+}
+
 export default function ProjectsPlaceholderPageClient() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectItem[]>([]);
@@ -108,6 +203,15 @@ export default function ProjectsPlaceholderPageClient() {
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState<ProjectFormState>(EMPTY_FORM);
   const [editingByProjectId, setEditingByProjectId] = useState<Record<string, ProjectFormState>>({});
+  const [directoryTarget, setDirectoryTarget] = useState<DirectoryPickerTarget>(null);
+  const [directoryPath, setDirectoryPath] = useState("");
+  const [directoryAbsolutePath, setDirectoryAbsolutePath] = useState("");
+  const [directoryItems, setDirectoryItems] = useState<DirectoryItem[]>([]);
+  const [directorySearchQuery, setDirectorySearchQuery] = useState("");
+  const [directorySearchResults, setDirectorySearchResults] = useState<DirectoryItem[]>([]);
+  const [isDirectoryLoading, setDirectoryLoading] = useState(false);
+  const [isDirectorySearching, setDirectorySearching] = useState(false);
+  const [directoryErrorMessage, setDirectoryErrorMessage] = useState<string | null>(null);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -137,9 +241,134 @@ export default function ProjectsPlaceholderPageClient() {
     }
   }, [router]);
 
+  const loadDirectoryBrowser = useCallback(
+    async (nextPath: string) => {
+      setDirectoryLoading(true);
+      setDirectoryErrorMessage(null);
+      try {
+        const query = nextPath ? `?path=${encodeURIComponent(nextPath)}` : "";
+        const response = await fetch(`/api/projects/workspace/directories/browse${query}`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (response.status === 401 || response.status === 403) {
+          router.replace("/login");
+          return;
+        }
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+          throw new Error(payload?.error?.message ?? "Directory browser is unavailable.");
+        }
+        const payload = (await response.json()) as {
+          path?: unknown;
+          absolute_path?: unknown;
+          items?: unknown[];
+        };
+        setDirectoryPath(typeof payload.path === "string" ? payload.path : "");
+        setDirectoryAbsolutePath(typeof payload.absolute_path === "string" ? payload.absolute_path : "");
+        setDirectoryItems(
+          Array.isArray(payload.items)
+            ? payload.items.map((item) => normalizeDirectory(item)).filter((item): item is DirectoryItem => Boolean(item))
+            : [],
+        );
+      } catch (error) {
+        setDirectoryErrorMessage(error instanceof Error ? error.message : "Directory browser is unavailable.");
+      } finally {
+        setDirectoryLoading(false);
+      }
+    },
+    [router],
+  );
+
+  const searchDirectories = useCallback(
+    async (query: string, nextPath: string) => {
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery) {
+        setDirectorySearchResults([]);
+        return;
+      }
+
+      setDirectorySearching(true);
+      setDirectoryErrorMessage(null);
+      try {
+        const searchParams = new URLSearchParams({ q: trimmedQuery });
+        if (nextPath) {
+          searchParams.set("path", nextPath);
+        }
+        const response = await fetch(`/api/projects/workspace/directories/search?${searchParams.toString()}`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (response.status === 401 || response.status === 403) {
+          router.replace("/login");
+          return;
+        }
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+          throw new Error(payload?.error?.message ?? "Directory search is unavailable.");
+        }
+        const payload = (await response.json()) as { items?: unknown[] };
+        setDirectorySearchResults(
+          Array.isArray(payload.items)
+            ? payload.items.map((item) => normalizeDirectory(item)).filter((item): item is DirectoryItem => Boolean(item))
+            : [],
+        );
+      } catch (error) {
+        setDirectoryErrorMessage(error instanceof Error ? error.message : "Directory search is unavailable.");
+      } finally {
+        setDirectorySearching(false);
+      }
+    },
+    [router],
+  );
+
   useEffect(() => {
     void loadProjects();
   }, [loadProjects]);
+
+  const openDirectoryPicker = (target: DirectoryPickerTarget) => {
+    setDirectoryTarget(target);
+    setDirectorySearchQuery("");
+    setDirectorySearchResults([]);
+    setDirectoryErrorMessage(null);
+    void loadDirectoryBrowser("");
+  };
+
+  const applyDirectorySelection = (absolutePath: string) => {
+    if (!directoryTarget) {
+      return;
+    }
+
+    if (directoryTarget.kind === "create") {
+      setCreateForm((previous) => ({
+        ...previous,
+        rootPath: absolutePath,
+        name: previous.name.trim() ? previous.name : inferProjectNameFromPath(absolutePath),
+      }));
+    } else {
+      setEditingByProjectId((previous) => {
+        const existing = previous[directoryTarget.projectId];
+        const currentProject = projects.find((item) => item.id === directoryTarget.projectId);
+        const nextDraft: ProjectFormState = existing ?? {
+          name: currentProject?.name ?? "",
+          rootPath: currentProject?.rootPath ?? "",
+          indexMdPath: currentProject?.indexMdPath ?? "",
+        };
+
+        return {
+          ...previous,
+          [directoryTarget.projectId]: {
+            ...nextDraft,
+            rootPath: absolutePath,
+          },
+        };
+      });
+    }
+
+    setDirectoryTarget(null);
+  };
 
   const submitCreate = async () => {
     setSubmitting(true);
@@ -257,6 +486,8 @@ export default function ProjectsPlaceholderPageClient() {
     }
   };
 
+  const visibleDirectoryResults = directorySearchQuery.trim() ? directorySearchResults : directoryItems;
+
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <header className="rounded-[28px] border border-border/80 bg-background/92 p-6 shadow-[0_12px_40px_rgba(0,0,0,0.05)] backdrop-blur sm:p-8">
@@ -368,19 +599,18 @@ export default function ProjectsPlaceholderPageClient() {
                           className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
                         />
                       </label>
-                      <label className="text-sm sm:col-span-2">
-                        <span className="mb-1.5 block font-medium text-foreground">Root path</span>
-                        <input
-                          value={draft.rootPath}
-                          onChange={(event) =>
+                      <div className="sm:col-span-2">
+                        {rootPathInput({
+                          value: draft.rootPath,
+                          onChange: (nextValue) =>
                             setEditingByProjectId((previous) => ({
                               ...previous,
-                              [project.id]: { ...draft, rootPath: event.target.value },
-                            }))
-                          }
-                          className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
-                        />
-                      </label>
+                              [project.id]: { ...draft, rootPath: nextValue },
+                            })),
+                          onBrowse: () => openDirectoryPicker({ kind: "edit", projectId: project.id }),
+                          disabled: isSubmitting,
+                        })}
+                      </div>
                       <label className="text-sm sm:col-span-2">
                         <span className="mb-1.5 block font-medium text-foreground">Index markdown path</span>
                         <input
@@ -415,56 +645,193 @@ export default function ProjectsPlaceholderPageClient() {
           )}
         </section>
 
-        <aside className="rounded-[24px] border border-border bg-background/90 p-5 sm:p-6">
-          <div className="flex items-center gap-3">
-            <Plus className="h-5 w-5 text-foreground" />
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight">Add project</h2>
-              <p className="text-sm text-muted-foreground">
-                Paths must be absolute and available inside the running backend container.
+        <aside className="flex flex-col gap-6">
+          <section className="rounded-[24px] border border-border bg-background/90 p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <Plus className="h-5 w-5 text-foreground" />
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight">Add project</h2>
+                <p className="text-sm text-muted-foreground">
+                  Pick a directory from the workspace browser or paste an absolute path manually.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <label className="text-sm">
+                <span className="mb-1.5 block font-medium text-foreground">Project name</span>
+                <input
+                  value={createForm.name}
+                  onChange={(event) => setCreateForm((previous) => ({ ...previous, name: event.target.value }))}
+                  placeholder="agentmobile"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
+                />
+              </label>
+              {rootPathInput({
+                value: createForm.rootPath,
+                onChange: (nextValue) => setCreateForm((previous) => ({ ...previous, rootPath: nextValue })),
+                onBrowse: () => openDirectoryPicker({ kind: "create" }),
+                disabled: isSubmitting,
+              })}
+              <label className="text-sm">
+                <span className="mb-1.5 block font-medium text-foreground">Index markdown path</span>
+                <input
+                  value={createForm.indexMdPath}
+                  onChange={(event) => setCreateForm((previous) => ({ ...previous, indexMdPath: event.target.value }))}
+                  placeholder="/workspace/agentmobile/INDEX.md"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
+                />
+              </label>
+            </div>
+
+            <button
+              type="button"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition hover:opacity-90"
+              onClick={() => void submitCreate()}
+              disabled={isSubmitting}
+            >
+              <Plus className="h-4 w-4" />
+              Create project
+            </button>
+          </section>
+
+          <section className="rounded-[24px] border border-border bg-background/90 p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <FolderSearch className="h-5 w-5 text-foreground" />
+              <div>
+                <h2 className="text-xl font-semibold tracking-tight">Directory finder</h2>
+                <p className="text-sm text-muted-foreground">
+                  Search or browse directories inside the configured workspace and apply one to a project root path.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-border bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Target
+              </p>
+              <p className="mt-1 text-sm text-foreground">
+                {directoryTarget?.kind === "create"
+                  ? "New project form"
+                  : directoryTarget?.kind === "edit"
+                    ? `Editing ${projects.find((item) => item.id === directoryTarget.projectId)?.name ?? "project"}`
+                    : "Choose Browse beside any root path field to start selecting a directory."}
               </p>
             </div>
-          </div>
 
-          <div className="mt-5 grid gap-4">
-            <label className="text-sm">
-              <span className="mb-1.5 block font-medium text-foreground">Project name</span>
-              <input
-                value={createForm.name}
-                onChange={(event) => setCreateForm((previous) => ({ ...previous, name: event.target.value }))}
-                placeholder="agentmobile"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1.5 block font-medium text-foreground">Root path</span>
-              <input
-                value={createForm.rootPath}
-                onChange={(event) => setCreateForm((previous) => ({ ...previous, rootPath: event.target.value }))}
-                placeholder="/workspace/agentmobile"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1.5 block font-medium text-foreground">Index markdown path</span>
-              <input
-                value={createForm.indexMdPath}
-                onChange={(event) => setCreateForm((previous) => ({ ...previous, indexMdPath: event.target.value }))}
-                placeholder="/workspace/agentmobile/INDEX.md"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
-              />
-            </label>
-          </div>
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm">
+                <span className="mb-1.5 block font-medium text-foreground">Search directories</span>
+                <div className="flex gap-2">
+                  <input
+                    value={directorySearchQuery}
+                    onChange={(event) => setDirectorySearchQuery(event.target.value)}
+                    placeholder="Search current workspace area"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 outline-none transition focus:border-foreground focus:ring-2 focus:ring-foreground/10"
+                  />
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-medium transition hover:bg-muted"
+                    onClick={() => void searchDirectories(directorySearchQuery, directoryPath)}
+                    disabled={isDirectorySearching}
+                  >
+                    <Search className="h-4 w-4" />
+                    Search
+                  </button>
+                </div>
+              </label>
 
-          <button
-            type="button"
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition hover:opacity-90"
-            onClick={() => void submitCreate()}
-            disabled={isSubmitting}
-          >
-            <Plus className="h-4 w-4" />
-            Create project
-          </button>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void loadDirectoryBrowser(buildParentRelativePath(directoryPath))}
+                  disabled={isDirectoryLoading || !directoryPath}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Up
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-border bg-background px-3 py-2 font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void loadDirectoryBrowser(directoryPath)}
+                  disabled={isDirectoryLoading}
+                >
+                  Refresh folders
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border border-border bg-background px-3 py-2 font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => applyDirectorySelection(directoryAbsolutePath)}
+                  disabled={!directoryTarget || !directoryAbsolutePath}
+                >
+                  Use current folder
+                </button>
+                {directoryTarget ? (
+                  <button
+                    type="button"
+                    className="rounded-xl border border-border bg-background px-3 py-2 font-medium transition hover:bg-muted"
+                    onClick={() => setDirectoryTarget(null)}
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm">
+              <p className="font-medium text-foreground">Current folder</p>
+              <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                {directoryAbsolutePath || "Open the browser to load the workspace root."}
+              </p>
+            </div>
+
+            {directoryErrorMessage ? (
+              <div className="mt-4 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                {directoryErrorMessage}
+              </div>
+            ) : null}
+
+            <div className="mt-4 rounded-[22px] border border-border bg-background p-3">
+              {isDirectoryLoading || isDirectorySearching ? (
+                <div className="space-y-2">
+                  <div className="h-12 animate-pulse rounded-2xl border border-border bg-muted/40" />
+                  <div className="h-12 animate-pulse rounded-2xl border border-border bg-muted/40" />
+                </div>
+              ) : visibleDirectoryResults.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                  {directorySearchQuery.trim()
+                    ? "No matching directories in the current workspace area."
+                    : "No subdirectories found here yet. You can still use the current folder."}
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  {visibleDirectoryResults.map((item) => (
+                    <button
+                      key={item.relativePath || item.absolutePath}
+                      type="button"
+                      className="rounded-2xl border border-border bg-background px-4 py-3 text-left transition hover:bg-muted"
+                      onClick={() =>
+                        directorySearchQuery.trim()
+                          ? applyDirectorySelection(item.absolutePath)
+                          : void loadDirectoryBrowser(item.relativePath)
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-foreground">{item.displayName}</span>
+                        <span className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                          {directorySearchQuery.trim() ? "Use" : "Open"}
+                        </span>
+                      </div>
+                      <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                        {item.absolutePath}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
         </aside>
       </div>
     </section>

@@ -120,6 +120,27 @@ def browse_workspace(relative_path: str | None) -> tuple[str, list[dict[str, obj
     return normalized, entries
 
 
+def browse_workspace_directories(relative_path: str | None) -> tuple[str, list[dict[str, str]]]:
+    normalized, entries = browse_workspace(relative_path)
+    workspace_root = ensure_workspace_root()
+    directories: list[dict[str, str]] = []
+
+    for entry in entries:
+        if not bool(entry["is_directory"]):
+            continue
+        entry_relative_path = str(entry["relative_path"])
+        _, absolute_path = resolve_workspace_path(entry_relative_path, expected_kind="directory")
+        directories.append(
+            {
+                "relative_path": entry_relative_path,
+                "absolute_path": str(absolute_path if entry_relative_path else workspace_root),
+                "display_name": str(entry["display_name"]),
+            }
+        )
+
+    return normalized, directories
+
+
 def search_workspace_files(
     *,
     query: str,
@@ -158,6 +179,53 @@ def search_workspace_files(
                     {
                         "relative_path": relative_file_path,
                         "display_name": file_name,
+                    },
+                )
+            )
+
+    matches.sort(key=lambda item: item[0])
+    return normalized_directory, [item for _, item in matches[:limit]]
+
+
+def search_workspace_directories(
+    *,
+    query: str,
+    relative_path: str | None,
+    limit: int,
+) -> tuple[str, list[dict[str, str]]]:
+    normalized_query = query.strip().lower()
+    if not normalized_query:
+        raise AppError(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            code="BAD_REQUEST",
+            message="Search query cannot be empty",
+            details={},
+        )
+
+    normalized_directory, directory = resolve_workspace_path(relative_path, expected_kind="directory")
+    workspace_root = ensure_workspace_root()
+    matches: list[tuple[tuple[int, int, int], dict[str, str]]] = []
+
+    for current_root, dir_names, _ in os.walk(directory, topdown=True, followlinks=False):
+        current_root_path = Path(current_root)
+        for directory_name in dir_names:
+            lowered_name = directory_name.lower()
+            if normalized_query not in lowered_name:
+                continue
+
+            directory_path = current_root_path / directory_name
+            relative_directory_path = directory_path.relative_to(workspace_root).as_posix()
+            matches.append(
+                (
+                    _workspace_search_score(
+                        file_name=directory_name,
+                        relative_file_path=relative_directory_path,
+                        query=normalized_query,
+                    ),
+                    {
+                        "relative_path": relative_directory_path,
+                        "absolute_path": str(directory_path.resolve()),
+                        "display_name": directory_name,
                     },
                 )
             )

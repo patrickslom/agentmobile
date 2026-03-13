@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,11 @@ from app.domains.projects.service import (
     list_projects,
     load_project_index_excerpt,
     validate_project_paths,
+)
+from app.domains.files.workspace_service import (
+    browse_workspace_directories,
+    resolve_workspace_path,
+    search_workspace_directories,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -31,6 +36,12 @@ class ProjectResponse(BaseModel):
 class ProjectIndexResponse(BaseModel):
     path: str | None
     content: str | None
+
+
+class ProjectWorkspaceDirectoryResponse(BaseModel):
+    relative_path: str
+    absolute_path: str
+    display_name: str
 
 
 class ProjectCreateRequest(BaseModel):
@@ -73,6 +84,36 @@ def get_projects(
             _project_to_response(project)
             for project in list_projects(db, include_inactive=include_inactive)
         ]
+    }
+
+
+@router.get("/workspace/directories/browse")
+def browse_project_workspace_directories(
+    path: str | None = Query(default=None),
+    _: User = Depends(get_current_user),
+) -> dict[str, object]:
+    normalized_path, items = browse_workspace_directories(path)
+    _, absolute_path = resolve_workspace_path(normalized_path, expected_kind="directory")
+    return {
+        "path": normalized_path,
+        "absolute_path": str(absolute_path),
+        "items": [ProjectWorkspaceDirectoryResponse.model_validate(item) for item in items],
+    }
+
+
+@router.get("/workspace/directories/search")
+def search_project_workspace_directories(
+    q: str = Query(min_length=1, max_length=255),
+    path: str | None = Query(default=None),
+    limit: int = Query(default=30, ge=1, le=100),
+    _: User = Depends(get_current_user),
+) -> dict[str, object]:
+    normalized_path, items = search_workspace_directories(query=q, relative_path=path, limit=limit)
+    _, absolute_path = resolve_workspace_path(normalized_path, expected_kind="directory")
+    return {
+        "path": normalized_path,
+        "absolute_path": str(absolute_path),
+        "items": [ProjectWorkspaceDirectoryResponse.model_validate(item) for item in items],
     }
 
 
